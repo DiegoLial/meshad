@@ -26,6 +26,8 @@ AI agents spend real time thinking, planning, indexing and executing. MeshAd tur
 - prompts, code, files, repositories and model responses never leave the user's machine;
 - publishers earn from useful, clearly-labelled sponsorships;
 - advertisers reach builders at the exact moment they are buying tools, infra and compute.
+- developers receive money through a controlled MeshAd ledger: earnings start pending, mature after antifraud checks, then can be paid out by Stripe/PayPal/USDC when the owner settles the payout in the admin console;
+- the owner keeps control over revenue share, publisher suspension, payout methods, moderation and payout settlement.
 
 > Never spy. Never interrupt. Never degrade.
 
