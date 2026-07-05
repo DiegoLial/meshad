@@ -1,28 +1,268 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MeshAd — privacy-first monetization for AI agents</title>
-  <meta name="description" content="MeshAd monetizes AI-agent idle time without collecting prompts, code or responses.">
+  <title>MeshAd — privacy-first monetization for AI coding agents</title>
+  <meta name="description" content="MeshAd turns an AI agent's idle thinking time into revenue for the developer running it — one signed, sponsored line in the terminal, gone the instant the answer arrives. Never reads prompts, code, or responses.">
   <style>
-    :root { color-scheme: dark; --bg:#030712; --panel:#0f172a; --line:#25304a; --text:#f8fafc; --muted:#9fb0cc; --accent:#36e4a6; --violet:#7068ff; }
-    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 70% 10%,#14164a 0,#030712 42%);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}
-    a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:32px 20px 80px}.nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:72px}.brand{display:flex;gap:12px;align-items:center;font-weight:800;font-size:22px}.mark{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,var(--violet),#36e4a6);color:#020617}.btn{display:inline-flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px 16px;text-decoration:none;background:#151a2d}.hero{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}.eyebrow{display:inline-block;border:1px solid #303b67;border-radius:999px;padding:8px 13px;color:#cfd8ff;background:#10152e}.hero h1{font-size:72px;line-height:.95;letter-spacing:-.06em;margin:24px 0}.hero p{color:var(--muted);font-size:20px;line-height:1.7}.terminal{background:#0b1023;border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:0 30px 80px #0008}.dots{display:flex;gap:8px}.dot{width:12px;height:12px;border-radius:50%;background:#f87171}.dot:nth-child(2){background:#fbbf24}.dot:nth-child(3){background:#34d399}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#91a3c7;margin-top:28px;line-height:1.7}.ad{margin:22px 0;padding:22px;border-radius:18px;background:#20294e;border:1px solid #3b4a7a}.ad strong{font-size:22px;color:white}.ok{color:var(--accent)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:70px}.card{background:#0d1326;border:1px solid var(--line);border-radius:22px;padding:28px}.card p{color:var(--muted);line-height:1.6}.shot{width:100%;border:1px solid var(--line);border-radius:20px;margin-top:24px}footer{border-top:1px solid var(--line);margin-top:80px;padding-top:28px;color:var(--muted)}@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.hero h1{font-size:48px}}
+    :root {
+      color-scheme: dark;
+      --ink: #0B0E11;
+      --panel: #11161C;
+      --edge: #1C232B;
+      --phosphor: #00E5A0;
+      --amber: #FFB454;
+      --fog: #8B98A5;
+      --mist: #C9D4DE;
+      --danger: #FF6B6B;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ink);
+      color: var(--mist);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    a { color: inherit; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+
+    nav.top {
+      border-bottom: 1px solid var(--edge);
+      position: sticky; top: 0; background: rgba(11,14,17,.92); backdrop-filter: blur(6px);
+    }
+    nav.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+    .brand .glyph { color: var(--phosphor); }
+    .navlinks { display: flex; gap: 8px; align-items: center; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      border-radius: 6px; padding: 10px 16px; font-size: 14px; font-weight: 600;
+      text-decoration: none; border: 1px solid var(--edge);
+    }
+    .btn-primary { background: var(--phosphor); color: #04120c; border-color: var(--phosphor); }
+    .btn-ghost { background: transparent; color: var(--mist); }
+    .btn-ghost:hover { border-color: var(--fog); }
+
+    section { padding: 64px 0; }
+    section.tight { padding: 40px 0; }
+    .border-t { border-top: 1px solid var(--edge); }
+
+    h1 { font-size: 52px; line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 20px; color: var(--mist); }
+    h1 .accent { color: var(--phosphor); }
+    h2.eyebrow { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--phosphor); margin: 0 0 20px; }
+    .lede { font-size: 18px; line-height: 1.7; color: var(--fog); max-width: 640px; }
+
+    .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center; }
+    .hero .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    .stat-row { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--fog); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+    .terminal { background: var(--ink); border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,.5); }
+    .terminal .bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--edge); }
+    .terminal .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal .dot.r { background: #FF5F57; } .terminal .dot.y { background: #FEBC2E; } .terminal .dot.g { background: #28C840; }
+    .terminal .title { margin-left: 6px; font-size: 12px; color: var(--fog); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .terminal .body { padding: 18px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.7; }
+    .terminal .prompt-sign { color: var(--phosphor); }
+    .terminal .dim { color: var(--fog); }
+    .terminal .ad { margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--edge); }
+    .terminal .ad .brand-line { color: var(--amber); font-weight: 600; }
+    .terminal .ad .sponsored { color: var(--amber); }
+    .terminal .ad .cta { text-decoration: underline; text-decoration-color: rgba(139,152,165,.4); }
+
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px; }
+    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 28px; }
+    .card { background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 20px; }
+    .card h3 { margin: 8px 0 6px; font-size: 17px; color: var(--mist); }
+    .card p { margin: 0; color: var(--fog); font-size: 14px; line-height: 1.6; }
+    .card .step-n { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; color: var(--fog); }
+    .card code.snippet { display: block; margin-top: 12px; background: var(--ink); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--phosphor); overflow-x: auto; white-space: nowrap; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+    .badge { border: 1px solid var(--edge); background: var(--panel); border-radius: 999px; padding: 6px 14px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; color: var(--mist); }
+    .badge.faint { color: var(--fog); border-color: rgba(28,35,43,.6); }
+
+    .shots { display: grid; gap: 24px; margin-top: 28px; }
+    figure { margin: 0; }
+    figure img { width: 100%; display: block; border: 1px solid var(--edge); border-radius: 10px; }
+    figcaption { margin-top: 8px; font-size: 13px; color: var(--fog); text-align: center; }
+
+    .install-box { background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 24px; margin-top: 24px; }
+    .install-box code.cmd { display: block; background: var(--ink); border-radius: 6px; padding: 12px 14px; font-size: 14px; color: var(--phosphor); margin: 12px 0; overflow-x: auto; }
+
+    footer { border-top: 1px solid var(--edge); padding: 28px 0; }
+    footer .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--fog); }
+    footer nav { display: flex; gap: 18px; }
+    footer a:hover { color: var(--mist); }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; }
+      .grid3, .grid4 { grid-template-columns: 1fr 1fr; }
+      h1 { font-size: 38px; }
+    }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <nav class="nav"><div class="brand"><span class="mark">⚡</span> MeshAd</div><a class="btn" href="https://github.com/DiegoLial/meshad">Star on GitHub</a></nav>
+  <nav class="top">
+    <div class="wrap">
+      <a class="brand" href="#top"><span class="glyph">⠿$</span> MeshAd</a>
+      <div class="navlinks">
+        <a class="btn btn-ghost" href="https://meshad.io">Live site</a>
+        <a class="btn btn-primary" href="https://github.com/DiegoLial/meshad">Star on GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wrap" id="top">
     <section class="hero">
-      <div><span class="eyebrow">GitHub-first launch • privacy-first AI monetization</span><h1>A ad network para agentes de IA.</h1><p>MeshAd transforma janelas reais de processamento em inventário premium sem ler prompts, código, respostas ou contexto do projeto.</p><p>O dev recebe por ledger: ganhos pendentes, antifraude, saldo disponível e saque aprovado pelo dono no admin.</p><p><a class="btn" href="https://meshad.io">Abrir meshad.io →</a></p></div>
-      <div class="terminal"><div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><div class="code">$ meshad run "claude implement billing events"<br><span class="ok">✓ Privacy guard active</span><div class="ad"><small>Sponsored while your agent thinks</small><br><strong>GPU credits for agent builders</strong><br><br>Usage-based compute for autonomous coding agents.</div>↳ no prompt data captured<br><span class="ok">✓ response ready — campaign dismissed</span></div></div>
+      <div>
+        <h2 class="eyebrow">privacy-first monetization for AI agents</h2>
+        <h1>Your wait becomes <span class="accent">revenue</span>.</h1>
+        <p class="lede">
+          MeshAd turns the seconds your AI coding agent spends thinking into income
+          for the developer running it — one signed, clearly-labeled sponsored line,
+          gone the instant the answer arrives. It never reads your prompts, your code,
+          or your files.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="https://meshad.io/publisher">Start earning →</a>
+          <a class="btn btn-ghost" href="https://meshad.io/advertiser">Reach developers mid-flow →</a>
+        </div>
+        <div class="stat-row">
+          <span>70/30 revenue share</span>
+          <span>·</span>
+          <span>Ed25519-signed creatives</span>
+          <span>·</span>
+          <span>second-price auction, no minimums</span>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="bar">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="title">~/project — claude</span>
+        </div>
+        <div class="body">
+          <div><span class="prompt-sign">$</span> claude "refactor the auth module"</div>
+          <div class="dim">⠋ Thinking... (6s)</div>
+          <div class="ad">
+            <div class="brand-line">▲ Neon — Postgres with branching. 10GB free</div>
+            <div><span class="cta">mesh.io/neon</span> · <span class="sponsored">sponsored</span></div>
+          </div>
+        </div>
+      </div>
     </section>
-    <section class="grid"><div class="card"><h3>0 prompts collected</h3><p>Only timing metadata leaves the machine.</p></div><div class="card"><h3>Terminal-native</h3><p>Clear, labelled sponsorships during idle time.</p></div><div class="card"><h3>Publisher revenue</h3><p>Developers share in the value they create.</p></div></section>
-    <img class="shot" src="assets/meshad-landing.png" alt="MeshAd landing screenshot">
-    <img class="shot" src="assets/meshad-publisher.png" alt="MeshAd publisher dashboard screenshot">
-    <img class="shot" src="assets/meshad-advertiser.png" alt="MeshAd advertiser dashboard screenshot">
-    <footer>© MeshAd. Never spy. Never interrupt. Never degrade.</footer>
+
+    <section class="border-t tight">
+      <h2 class="eyebrow" style="text-align:center">how it works</h2>
+      <div class="grid4">
+        <div class="card">
+          <p class="step-n">01</p>
+          <h3>Install</h3>
+          <p>One command, open-source client, explicit opt-in. Pause or uninstall any time.</p>
+          <code class="snippet">curl -fsSL https://meshad.io/install | sh</code>
+        </div>
+        <div class="card">
+          <p class="step-n">02</p>
+          <h3>Advertisers bid</h3>
+          <p>Any company self-serves a campaign into a second-price auction — no minimums, no salesperson.</p>
+          <code class="snippet">POST /v1/campaigns</code>
+        </div>
+        <div class="card">
+          <p class="step-n">03</p>
+          <h3>Wait</h3>
+          <p>When the agent thinks for 8+ seconds, one sponsored line/block/panel renders. Cleared in under 100ms.</p>
+          <code class="snippet">⠋ Thinking...</code>
+        </div>
+        <div class="card">
+          <p class="step-n">04</p>
+          <h3>Everyone earns</h3>
+          <p>Every viewable impression is priced by the auction, split 70/30, posted to a double-entry ledger.</p>
+          <code class="snippet">$ meshad earnings</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="border-t tight">
+      <h2 class="eyebrow" style="text-align:center">works with the CLI you already use</h2>
+      <div class="badges" style="justify-content:center">
+        <span class="badge">Claude Code</span>
+        <span class="badge">Gemini CLI</span>
+        <span class="badge">Codex</span>
+        <span class="badge">Aider</span>
+        <span class="badge">OpenCode</span>
+        <span class="badge">Cursor</span>
+        <span class="badge">Windsurf</span>
+        <span class="badge">Kiro</span>
+        <span class="badge">Continue</span>
+        <span class="badge faint">+ any other CLI</span>
+      </div>
+    </section>
+
+    <section class="border-t">
+      <h2 class="eyebrow">privacy is the product</h2>
+      <p class="lede">
+        The client can only emit five signals — the schema is public, versioned, and
+        enforced on both ends. A batch with any extra field is rejected in full.
+      </p>
+      <div class="grid3">
+        <div class="card">
+          <h3>0 prompts, ever</h3>
+          <p>Only timing metadata leaves the machine: when the agent starts/stops thinking, a rotatable anonymous ID, and the terminal type.</p>
+        </div>
+        <div class="card">
+          <h3>Terminal-native</h3>
+          <p>One clearly-labeled sponsored line, block, or bordered panel — colors and emoji, never raw escape codes from an advertiser.</p>
+        </div>
+        <div class="card">
+          <h3>Publisher revenue</h3>
+          <p>70% to the developer by default, in a double-entry ledger, settled via Stripe Connect once you're onboarded.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="border-t">
+      <h2 class="eyebrow">see it running</h2>
+      <div class="shots">
+        <figure>
+          <img src="assets/meshad-landing.png" alt="MeshAd landing page, showing the hero, terminal demo, and supported-CLI list">
+          <figcaption>The live product at meshad.io</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/meshad-publisher.png" alt="MeshAd publisher dashboard, showing earnings, a chart, preferences, Stripe Connect, and CLI key setup">
+          <figcaption>Publisher dashboard — earnings, payout setup, CLI key</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/meshad-advertiser.png" alt="MeshAd advertiser dashboard, showing account balance and a list of active campaigns">
+          <figcaption>Advertiser dashboard — balance and live campaigns</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="border-t">
+      <h2 class="eyebrow">install the CLI</h2>
+      <div class="install-box">
+        <p class="lede" style="margin-bottom:0">One command. The source lives in <code>cli/</code> in this repo — mirrored here so it can be installed without access to the private core platform.</p>
+        <code class="cmd">curl -fsSL https://meshad.io/install | sh</code>
+        <p class="lede" style="margin-bottom:0">or manually:</p>
+        <code class="cmd">git clone https://github.com/DiegoLial/meshad.git &amp;&amp; npm install -g ./meshad/cli</code>
+        <a class="btn btn-ghost" href="https://github.com/DiegoLial/meshad/blob/main/cli/README.md">Read the CLI docs →</a>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <div class="wrap">
+      <span class="mono"><span style="color:var(--phosphor)">⠿$</span> MeshAd — your wait becomes revenue.</span>
+      <nav>
+        <a href="https://meshad.io">Live site</a>
+        <a href="https://meshad.io/publisher">Publisher</a>
+        <a href="https://meshad.io/advertiser">Advertiser</a>
+        <a href="https://github.com/DiegoLial/meshad/blob/main/cli/README.md">CLI</a>
+        <a href="https://github.com/DiegoLial/meshad">GitHub</a>
+      </nav>
+    </div>
+  </footer>
 </body>
 </html>

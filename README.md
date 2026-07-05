@@ -45,6 +45,18 @@ AI agents spend real time thinking, planning, indexing and executing. MeshAd tur
 
 ![MeshAd advertiser dashboard](assets/meshad-advertiser.png)
 
+## Install the CLI
+
+```bash
+curl -fsSL https://meshad.io/install | sh
+meshad init
+```
+
+The CLI's source lives in [`cli/`](cli) — mirrored here from the private core
+repository so it can be installed standalone, without access to the core
+platform's source. See [`cli/README.md`](cli/README.md) for the full command
+reference and the privacy contract in detail.
+
 ## How it works
 
 ```txt
@@ -84,9 +96,12 @@ MeshAd API ── campaign auction ── signed ad pack
 
 ## Repository model
 
-This public repository is the launch/landing hub: screenshots, positioning, install notes and public-facing documentation.
+This public repository is the launch/landing hub: screenshots, positioning,
+public-facing documentation, and a mirror of the CLI's source (`cli/`) so it
+can be installed without access to the private core.
 
-The production core remains private while the public surface is prepared for launch.
+The production core (API, auction, fraud detection, ledger, dashboard)
+remains private.
 
 ## Domain
 

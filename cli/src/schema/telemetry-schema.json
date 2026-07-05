@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meshad.io/schemas/telemetry/v1",
+  "title": "MeshAd Telemetry Event — v1",
+  "description": "The COMPLETE closed allowlist of data that may leave a developer's machine. Any payload containing fields outside this schema MUST be rejected in full by both client and gateway. Changes require a major version, public announcement and re-consent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event", "ts", "anon_id", "terminal_type", "sdk_version"],
+  "properties": {
+    "event": {
+      "type": "string",
+      "enum": ["idle_start", "idle_end", "impression", "click", "heartbeat"]
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "anon_id": {
+      "type": "string",
+      "description": "Locally generated random UUID. No relation to hardware. User-rotatable at any time.",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "terminal_type": {
+      "type": "string",
+      "enum": ["claude-code", "gemini-cli", "codex", "aider", "opencode", "cursor", "windsurf", "kiro", "continue", "other"]
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400000,
+      "description": "Only present on idle_end and impression events."
+    },
+    "ad_id": {
+      "type": "string",
+      "pattern": "^ad_[A-Za-z0-9]{8,32}$",
+      "description": "Only present on impression and click events."
+    },
+    "sdk_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    }
+  }
+}
