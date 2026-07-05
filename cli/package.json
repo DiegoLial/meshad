@@ -9,9 +9,22 @@
     "url": "git+https://github.com/DiegoLial/meshad.git",
     "directory": "cli"
   },
+  "homepage": "https://meshad.io",
+  "keywords": [
+    "ai-agent",
+    "cli",
+    "monetization",
+    "claude-code",
+    "developer-tools"
+  ],
   "bin": {
     "meshad": "./bin/meshad.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
   "engines": {
     "node": ">=22"
   }
