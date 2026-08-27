@@ -10,7 +10,10 @@ const os = require('node:os');
 const path = require('node:path');
 
 const DEFAULTS = {
-  api_url: 'http://localhost:4000',
+  // The public network. Local development overrides via MESHAD_API_URL (env
+  // wins over config, see apiUrl()) — a public install must never default to
+  // the user's own machine.
+  api_url: 'https://api.meshad.io',
   api_key: null,
   account_id: null,
   anon_id: null,
