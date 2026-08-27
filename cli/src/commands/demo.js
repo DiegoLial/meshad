@@ -27,6 +27,8 @@ const HELP = `
 
   Options:
     --wait <s>   how long the fake agent thinks (default 12)
+    --all        showcase: play EVERY ad in the current pack, one after the
+                 other (preview only — nothing is sent, billed or credited)
     --help
 `;
 
@@ -36,7 +38,7 @@ const DEMO_MIN_WAIT_MS = 3000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 module.exports = async function demo(_cmd, argv) {
-  const { flags } = parseFlags(argv, { wait: 'string', help: 'bool' });
+  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', help: 'bool' });
   if (flags.help) {
     console.log(HELP);
     return 0;
@@ -55,6 +57,41 @@ module.exports = async function demo(_cmd, argv) {
   const dir = config.configDir();
   const isTTY = !!process.stdout.isTTY;
   const paused = config.isPaused(cfg);
+
+  // ── --all: showcase every ad in the pack, back to back ──────────────
+  // A preview, not a wait: no fsm, no cap window, no telemetry object at all —
+  // nothing leaves the machine, nothing bills, nothing credits.
+  if (flags.all) {
+    const showcase = new AdCache({ dir, apiUrl });
+    const ads = await showcase.getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default });
+    if (!ads.length) {
+      console.log(`  ${c.dim(t('demo.noAdCache'))}`);
+      return 0;
+    }
+    const renderer2 = new LineRenderer(process.stdout);
+    const animator2 = new Animator(renderer2);
+    console.log('');
+    console.log(`  ${c.yellow(t('demo.allBanner', { n: ads.length }))}`);
+    for (let k = 0; k < ads.length; k++) {
+      const ad = ads[k];
+      const label = (ad.render && ad.render.cta) || ad.ad_id;
+      const price = `$${(Number(ad.price_micros) / 1e6).toFixed(2)} ${ad.pricing_model}`;
+      console.log('');
+      console.log(`  ${c.dim(`[${k + 1}/${ads.length}]`)} ${c.bold(label)} ${c.dim(`· ${ad.format} · ${price}`)}`);
+      if (isTTY) {
+        const timeline = buildTimeline(ad, process.stdout.columns || 80, process.stdout.rows || 24);
+        const cycleMs = (timeline.steps || []).reduce((s, st) => s + (st.ms || 0), 0);
+        animator2.play(timeline);
+        await sleep(Math.min(Math.max(2500, cycleMs), 8000));
+        animator2.stop();
+      } else {
+        for (const l of formatAd(ad, process.stdout.columns || 80)) console.log(`  ${l}`);
+      }
+    }
+    console.log('');
+    console.log(`  ${c.dim(t('demo.allDone', { n: ads.length }))}`);
+    return 0;
+  }
 
   const telemetry = cfg.dev_mode ? new NullTelemetry() : new Telemetry({ dir, apiUrl });
   const adcache = new AdCache({ dir, apiUrl });
