@@ -15,7 +15,7 @@ const config = require('../config');
 const { AdCache } = require('../adcache');
 const { Telemetry } = require('../telemetry');
 const { IdleStateMachine } = require('../fsm');
-const { LineRenderer, formatAd } = require('../render');
+const { LineRenderer, Animator, buildTimeline } = require('../render');
 const { makeEvent, loadWindow, saveWindow } = require('../session');
 const { c, parseFlags } = require('../util');
 
@@ -59,6 +59,9 @@ module.exports = async function run(_cmd, argv) {
   const telemetry = new Telemetry({ dir, apiUrl });
   const adcache = new AdCache({ dir, apiUrl });
   const renderer = new LineRenderer(process.stdout);
+  // The animator owns playback; stop() halts any pending frame AND clears, so
+  // an animated ad can never outlive the wait it was drawn for.
+  const animator = new Animator(renderer);
   const fsm = new IdleStateMachine({
     minWaitMs: cfg.min_wait_ms,
     capPerHour: cfg.frequency_cap_h,
@@ -82,7 +85,7 @@ module.exports = async function run(_cmd, argv) {
   function endIdle() {
     for (const action of fsm.idleEnd(Date.now())) {
       if (action.type === 'clear') {
-        renderer.clear(); // FIRST, synchronous — the <100ms invariant
+        animator.stop(); // FIRST, synchronous — the <100ms invariant
       } else if (action.type === 'impression' && shownAd) {
         telemetry.enqueue(makeEvent(cfg, 'impression', { ad_id: shownAd.ad_id, duration_ms: action.displayed_ms }));
       } else if (action.type === 'idle_end') {
@@ -118,7 +121,9 @@ module.exports = async function run(_cmd, argv) {
       for (const action of fsm.tick(now)) {
         if (action.type === 'display') {
           shownAd = ads[0]; // one unit per wait
-          renderer.render(formatAd(shownAd, process.stdout.columns || 80));
+          // Static creatives yield a single-step timeline, so this is the same
+          // single synchronous write they always were.
+          animator.play(buildTimeline(shownAd, process.stdout.columns || 80, process.stdout.rows || 24));
         }
       }
     }

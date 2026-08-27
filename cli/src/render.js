@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Footer renderer — 1 to 5 rows depending on format. Fail-closed: any
+ * Footer renderer — 1 to 6 rows depending on format. Fail-closed: any
  * problem (no TTY, weird terminal, write error) means NO ad — never an
  * exception for the caller, never a corrupted screen.
  *
@@ -11,21 +11,39 @@
  * write per call, clear completes in well under 100ms.
  */
 
+const {
+  FG_CODES, MAX_ART_LINES, displayWidth, truncateToWidth, renderLine,
+  validateFrames, sliceSpans, DEFAULT_HOLD_MS,
+} = require('./creative');
+
 const ESC = '\x1b';
 const SAVE = `${ESC}7`;
 const RESTORE = `${ESC}8`;
 
 const COLOR_CODES = { dim: '2', green: '32', cyan: '36', magenta: '35', yellow: '33', blue: '34', red: '31' };
 
+/** Text formats stay at 5 rows; `ascii_panel` buys one more for its art. */
+const MAX_ROWS_TEXT = 5;
+const MAX_ROWS_ART = MAX_ART_LINES + 1; // art + the mandatory sponsored row
+
+/** Entrance reveal: ~300ms total, then the ad holds still for the rest of the wait. */
+const REVEAL_STEPS = 12;
+const REVEAL_FRAME_MS = 25;
+
+/** Art needs room to read as art. Below this the ad degrades to one text line. */
+const MIN_COLS_ART = 60;
+const MIN_ROWS_ART = 20;
+
 function colorCode(color) {
   return COLOR_CODES[color] || COLOR_CODES.dim;
 }
 
-/** Strip control/newline characters and clamp length — never trust ad content blindly. */
-function sanitizeLine(s, maxLen) {
-  return String(s ?? '')
-    .replace(/[\r\n\x00-\x08\x0b-\x1f]/g, ' ')
-    .slice(0, Math.max(0, maxLen));
+/** Strip control/newline characters and clamp width — never trust ad content blindly. */
+function sanitizeLine(s, maxWidth) {
+  return truncateToWidth(
+    String(s ?? '').replace(/[\r\n\x00-\x08\x0b-\x1f]/g, ' '),
+    Math.max(0, maxWidth),
+  );
 }
 
 class LineRenderer {
@@ -50,7 +68,7 @@ class LineRenderer {
       const lines = Array.isArray(payload) ? payload : [payload];
       const cols = this.stream.columns || 80;
       const rows = this.stream.rows || 24;
-      const height = Math.min(lines.length, rows - 1, 5);
+      const height = Math.min(lines.length, rows - 1, MAX_ROWS_ART);
       if (height <= 0) return false;
 
       let out = SAVE;
@@ -94,57 +112,323 @@ class LineRenderer {
   }
 }
 
+/** SGR-only escape: \x1b[ <digits and semicolons> m. Nothing else is an escape. */
+const SGR_RE = /\x1b\[[0-9;]*m/g;
+
 /**
- * A line that may already carry a leading ANSI color escape (from formatAd)
- * — sanitize the human-readable text but preserve the leading \x1b[..m code.
+ * Last line of defence before bytes reach the terminal. Styling escapes we
+ * generated (SGR, i.e. colour/bold/reset) survive; every other escape sequence
+ * and control character is erased, so nothing can move the cursor, clear the
+ * screen, repaint the palette or open a hyperlink. Width is measured on the
+ * visible text only — escapes occupy no columns.
  */
-function sanitizeAnsiLine(line, maxLen) {
-  const m = /^(\x1b\[[0-9;]*m)([\s\S]*)$/.exec(line);
-  if (!m) return sanitizeLine(line, maxLen);
-  return m[1] + sanitizeLine(m[2], maxLen);
+function sanitizeAnsiLine(line, maxWidth) {
+  const s = String(line ?? '');
+  const styles = [];
+  // Park the legitimate SGR codes, scrub what is left, then put them back.
+  const parked = s.replace(SGR_RE, (m) => {
+    styles.push(m);
+    return '\x00SGR\x01';
+  });
+  const scrubbed = parked.replace(/[\r\n\x1b\x02-\x08\x0b-\x1f\x7f]/g, ' ');
+
+  let width = 0;
+  let out = '';
+  let i = 0;
+  const parts = scrubbed.split('\x00SGR\x01');
+  for (const part of parts) {
+    const room = Math.max(0, maxWidth - width);
+    const text = truncateToWidth(part, room);
+    out += text;
+    width += displayWidth(text);
+    if (i < styles.length) out += styles[i++];
+  }
+  while (i < styles.length) out += styles[i++]; // keep any trailing reset
+  return out;
 }
 
 /**
- * Render an ad into 1-5 already-colored, ANSI-ready lines, per its format:
- *   text_line  — one line: emoji + text + cta + sponsored label.
- *   text_block — 2-4 lines: content lines, then the cta/sponsored line.
- *   rich_panel — a bordered box (┌─┐ / │ │ / └─┘) around the same content.
+ * Compose "content  <cta · sponsored · hint>" into one line, reserving the
+ * suffix's width FIRST and spending what is left on the content.
+ *
+ * Truncating from the right — which is what a naive clamp does — eats the
+ * sponsored label on a narrow terminal and renders an undisclosed ad. The
+ * disclosure is not the part that gives way. If the suffix alone does not fit,
+ * there is no honest ad to draw, so we return null and nothing is shown.
+ */
+function composeWithSuffix(content, suffix, maxWidth) {
+  const suffixWidth = displayWidth(suffix);
+  if (suffixWidth > maxWidth) return null; // cannot disclose => do not advertise
+  const room = maxWidth - suffixWidth - 2; // 2 = the separating spaces
+  if (room <= 0) return suffix;
+
+  const clean = sanitizeLine(content, Infinity);
+  if (displayWidth(clean) <= room) return clean ? `${clean}  ${suffix}` : suffix;
+
+  // Truncated: mark it. A phrase that just stops mid-word reads as a rendering
+  // bug; an ellipsis reads as a deliberate cut.
+  const body = sanitizeLine(clean, Math.max(0, room - 1)).replace(/[\s.,;:—-]+$/, '');
+  return body ? `${body}…  ${suffix}` : suffix;
+}
+
+/**
+ * Render an ad into 1-6 already-colored, ANSI-ready lines, per its format:
+ *   text_line   — one line: emoji + text + cta + sponsored label.
+ *   text_block  — 2-4 lines: content lines, then the cta/sponsored line.
+ *   rich_panel  — a bordered box (┌─┐ / │ │ / └─┘) around the same content.
+ *   ascii_panel — multi-colour art: each line is an array of {t,fg,bg,bold}
+ *                 spans, styled by @meshad/creative. The advertiser never
+ *                 supplies an escape sequence; we synthesize every one.
  * The `sponsored` label and pause hint are non-negotiable and always present.
  */
-function formatAd(ad, cols = 80) {
+/** The art an ad shows when standing still: its flat art, or its first frame. */
+function firstArt(render) {
+  if (Array.isArray(render.art_lines) && render.art_lines.length) return render.art_lines;
+  const frames = render.frames;
+  if (Array.isArray(frames) && frames.length && Array.isArray(frames[0].art_lines)) return frames[0].art_lines;
+  return [];
+}
+
+function formatAd(ad, cols = 80, rows = 24) {
   const r = (ad && ad.render) || {};
   const code = colorCode(r.color);
   const emojiPrefix = r.emoji ? `${r.emoji} ` : '';
   const suffix = `${r.cta || ''} · sponsored · (meshad pause)`;
-  const maxLen = Math.max(20, cols - 1);
+  const maxWidth = Math.max(20, cols - 1);
   const contentLines = (Array.isArray(r.lines) && r.lines.length ? r.lines : [r.text || '']).slice(0, 3);
   const wrap = (s) => `\x1b[${code}m${s}`;
 
   const format = ad && ad.format;
 
+  if (format === 'ascii_panel') {
+    const art0 = firstArt(r);
+    // Degrade to a single text line on a terminal too small for the art to read.
+    if (cols >= MIN_COLS_ART && rows >= MIN_ROWS_ART && art0.length) {
+      const art = art0
+        .slice(0, MAX_ART_LINES)
+        .map((line) => renderLine(line, maxWidth));
+      return [...art, wrap(sanitizeLine(suffix, maxWidth))];
+    }
+    const flat = art0
+      .map((line) => (Array.isArray(line) ? line.map((s) => (s && s.t) || '').join('') : ''))
+      .join(' ')
+      .trim();
+    const composed = composeWithSuffix(`${emojiPrefix}${flat || contentLines[0] || ''}`, suffix, maxWidth);
+    return composed === null ? [] : [wrap(composed)];
+  }
+
   if (format === 'rich_panel' && cols >= 40) {
-    const rawRows = [...contentLines.map((l, i) => `${i === 0 ? emojiPrefix : ''}${l}`), suffix];
-    const innerWidth = Math.min(maxLen - 4, Math.max(...rawRows.map((l) => l.length)) + 0);
+    // Budget: top border + content + suffix + bottom border must fit the cap.
+    const bodyBudget = MAX_ROWS_TEXT - 3; // 2 borders + suffix row
+    const rawRows = [
+      ...contentLines.slice(0, bodyBudget).map((l, i) => `${i === 0 ? emojiPrefix : ''}${l}`),
+      suffix,
+    ];
+    const innerWidth = Math.min(maxWidth - 4, Math.max(...rawRows.map((l) => displayWidth(l))));
     const pad = (s) => {
       const clipped = sanitizeLine(s, innerWidth);
-      return ` ${clipped}${' '.repeat(Math.max(0, innerWidth - clipped.length))} `;
+      return ` ${clipped}${' '.repeat(Math.max(0, innerWidth - displayWidth(clipped)))} `;
     };
     const top = `┌${'─'.repeat(innerWidth + 2)}┐`;
     const bottom = `└${'─'.repeat(innerWidth + 2)}┘`;
-    const rows = [top, ...rawRows.map((l) => `│${pad(l)}│`), bottom];
-    return rows.map(wrap);
+    const panelRows = [top, ...rawRows.map((l) => `│${pad(l)}│`), bottom];
+    return panelRows.map(wrap);
   }
 
-  if (format === 'text_block' || (format === 'rich_panel' /* too narrow: degrade */)) {
-    const rows = [...contentLines.map((l, i) => `${i === 0 ? emojiPrefix : ''}${l}`), suffix].map((l) =>
-      sanitizeLine(l, maxLen),
+  if (format === 'text_block' || format === 'rich_panel' /* too narrow: degrade */) {
+    const blockRows = [...contentLines.map((l, i) => `${i === 0 ? emojiPrefix : ''}${l}`), suffix].map((l) =>
+      sanitizeLine(l, maxWidth),
     );
-    return rows.map(wrap);
+    return blockRows.map(wrap);
   }
 
   // text_line (default, and the fallback for any unknown future format)
-  const line = sanitizeLine(`${emojiPrefix}${contentLines[0] || ''}  ${suffix}`, maxLen);
-  return [wrap(line)];
+  const line = composeWithSuffix(`${emojiPrefix}${contentLines[0] || ''}`, suffix, maxWidth);
+  return line === null ? [] : [wrap(line)];
 }
 
-module.exports = { LineRenderer, formatAd, colorCode, COLOR_CODES };
+
+/**
+ * Frames for the entrance reveal: the art wipes in left-to-right, then holds.
+ *
+ * The creative is untouched — these are derived client-side from the same signed
+ * spans by asking renderLine for a growing width, so animating costs no payload,
+ * no second signature and no moderation surface. Nothing is animated after the
+ * reveal completes: the ad occupies idle time, it does not compete for attention
+ * with what the developer is actually waiting for.
+ *
+ * The sponsored row is drawn in full from frame one. Disclosure is never
+ * partially revealed, not even for 300ms.
+ *
+ * @returns {string[][]} one entry per frame; a single entry means "do not animate".
+ */
+function revealFrames(ad, cols = 80, rows = 24, steps = REVEAL_STEPS) {
+  const final = formatAd(ad, cols, rows);
+  const r = (ad && ad.render) || {};
+
+  // Only ascii_panel animates, and only when it rendered as art (not degraded
+  // to the one-line fallback, where there is nothing to wipe in).
+  const isArt = ad && ad.format === 'ascii_panel' && final.length > 1;
+  if (!isArt) return [final];
+
+  const maxWidth = Math.max(20, cols - 1);
+  const artSpans = firstArt(r).slice(0, MAX_ART_LINES);
+  if (!artSpans.length) return [final];
+  const suffixRow = final[final.length - 1];
+  const widest = Math.max(
+    1,
+    ...artSpans.map((line) =>
+      (Array.isArray(line) ? line : []).reduce((w, sp) => w + displayWidth((sp && sp.t) || ''), 0),
+    ),
+  );
+  const target = Math.min(widest, maxWidth);
+  const frameCount = Math.max(1, Math.min(steps, target));
+
+  const frames = [];
+  for (let i = 1; i <= frameCount; i++) {
+    const width = Math.ceil((target * i) / frameCount);
+    frames.push([...artSpans.map((line) => renderLine(line, width)), suffixRow]);
+  }
+  return frames;
+}
+
+
+/* ── animation ────────────────────────────────────────────────────────────── */
+
+/** Sub-frame durations for the transitions the client draws between frames. */
+const WIPE_STEP_MS = 22;
+const WIPE_STEPS = 14;
+const TYPE_STEP_MS = 18;
+
+/** Style one art line, plus the fixed sponsored row, into a drawable frame. */
+function drawFrame(artSpans, suffixRow, maxWidth) {
+  return [...artSpans.map((line) => renderLine(line, maxWidth)), suffixRow];
+}
+
+/**
+ * Expand an animated creative into a flat timeline of {lines, ms} steps.
+ *
+ * Frames come from the creative and are covered by its signature; the steps
+ * BETWEEN them (wipe columns, typewriter characters) are derived here from those
+ * same signed spans, so a transition adds nothing to the payload and nothing to
+ * moderation's surface.
+ *
+ * The sponsored row is rebuilt into every single step. There is no sub-frame,
+ * transitional or otherwise, in which the ad is on screen undisclosed.
+ *
+ * @returns {{ steps: Array<{lines: string[], ms: number}>, loop: boolean }}
+ */
+function buildTimeline(ad, cols = 80, rows = 24) {
+  const r = (ad && ad.render) || {};
+  const staticLines = formatAd(ad, cols, rows);
+
+  const isArt = ad && ad.format === 'ascii_panel' && staticLines.length > 1;
+  if (!isArt) return { steps: [{ lines: staticLines, ms: 0 }], loop: false };
+
+  const { frames } = validateFrames(r.frames ? { frames: r.frames } : { art_lines: r.art_lines || [] });
+  if (!frames.length) return { steps: [{ lines: staticLines, ms: 0 }], loop: false };
+
+  const maxWidth = Math.max(20, cols - 1);
+  const suffixRow = staticLines[staticLines.length - 1];
+  const transition = r.transition || 'cut';
+  const loop = !!r.loop && frames.length > 1;
+
+  const widthOf = (art) =>
+    Math.max(0, ...art.map((line) => (Array.isArray(line) ? line : []).reduce(
+      (w, sp) => w + displayWidth((sp && sp.t) || ''), 0)));
+
+  const steps = [];
+
+  frames.forEach((frame, index) => {
+    const art = frame.art_lines.slice(0, MAX_ART_LINES);
+    const previous = index > 0 ? frames[index - 1].art_lines.slice(0, MAX_ART_LINES) : null;
+    const target = Math.min(Math.max(widthOf(art), previous ? widthOf(previous) : 0), maxWidth);
+
+    if (transition === 'wipe' && target > 0) {
+      // The incoming frame takes the left columns while the outgoing one still
+      // holds the right — a real wipe, not a reveal over emptiness.
+      const stepCount = Math.max(1, Math.min(WIPE_STEPS, target));
+      for (let i = 1; i <= stepCount; i++) {
+        const edge = Math.ceil((target * i) / stepCount);
+        const composited = art.map((line, row) => {
+          const incoming = sliceSpans(line, 0, edge);
+          const outgoing = previous ? sliceSpans(previous[row] || [], edge, maxWidth) : [];
+          const gap = Math.max(0, edge - incoming.reduce((w, sp) => w + displayWidth(sp.t), 0));
+          return [...incoming, ...(gap ? [{ t: ' '.repeat(gap) }] : []), ...outgoing];
+        });
+        steps.push({ lines: drawFrame(composited, suffixRow, maxWidth), ms: WIPE_STEP_MS });
+      }
+    } else if (transition === 'typewriter' && target > 0) {
+      const width = Math.min(widthOf(art), maxWidth);
+      for (let w = 1; w <= width; w++) {
+        steps.push({ lines: drawFrame(art.map((l) => sliceSpans(l, 0, w)), suffixRow, maxWidth), ms: TYPE_STEP_MS });
+      }
+    }
+
+    steps.push({ lines: drawFrame(art, suffixRow, maxWidth), ms: frame.hold_ms || DEFAULT_HOLD_MS });
+  });
+
+  return { steps, loop };
+}
+
+/**
+ * Plays a timeline into a LineRenderer. Single-shot by default; `loop` repeats
+ * until stop(). Stopping is immediate and idempotent — the FSM calls it the
+ * instant the agent's answer lands, and nothing may outlive that.
+ */
+class Animator {
+  constructor(renderer, { setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout } = {}) {
+    this.renderer = renderer;
+    this.setTimeoutFn = setTimeoutFn;
+    this.clearTimeoutFn = clearTimeoutFn;
+    this.timer = null;
+    this.stopped = false;
+  }
+
+  /** Draw `steps` in order. Returns true if the first frame was drawn. */
+  play({ steps, loop }) {
+    this.stopped = false;
+    if (!steps || !steps.length) return false;
+
+    let i = 0;
+    const tick = () => {
+      if (this.stopped) return;
+      const step = steps[i];
+      this.renderer.render(step.lines);
+      i++;
+      if (i >= steps.length) {
+        if (!loop) return;
+        i = 0;
+      }
+      if (step.ms > 0) {
+        this.timer = this.setTimeoutFn(tick, step.ms);
+        if (this.timer && typeof this.timer.unref === 'function') this.timer.unref();
+      }
+    };
+
+    const drawn = this.renderer.render(steps[0].lines);
+    if (!drawn) return false;
+    i = 1;
+    if (steps.length > 1 || loop) {
+      this.timer = this.setTimeoutFn(tick, steps[0].ms || DEFAULT_HOLD_MS);
+      if (this.timer && typeof this.timer.unref === 'function') this.timer.unref();
+    }
+    return true;
+  }
+
+  /** Halt playback and erase. Safe to call at any time, any number of times. */
+  stop() {
+    this.stopped = true;
+    if (this.timer) {
+      this.clearTimeoutFn(this.timer);
+      this.timer = null;
+    }
+    this.renderer.clear();
+  }
+}
+
+module.exports = {
+  LineRenderer, formatAd, revealFrames, buildTimeline, Animator, colorCode, COLOR_CODES, FG_CODES,
+  REVEAL_STEPS, REVEAL_FRAME_MS,
+  MAX_ROWS_TEXT, MAX_ROWS_ART, MIN_COLS_ART, MIN_ROWS_ART,
+};

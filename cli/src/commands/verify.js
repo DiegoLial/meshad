@@ -9,11 +9,32 @@
  */
 
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const config = require('../config');
 const i18n = require('../i18n');
-const { validateEvent } = require('../schema');
+const schema = require('../schema');
+const { validateEvent } = schema;
 const { AdCache } = require('../adcache');
 const { c, parseFlags } = require('../util');
+
+// Same canonicalization + fingerprint as apps/api/src/transparency.js, so the
+// client can independently confirm the server enforces this exact allowlist.
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+function localSchemaFingerprint() {
+  return crypto.createHash('sha256').update(canonical({
+    version: schema.SCHEMA_VERSION,
+    allowed_fields: schema.ALLOWED_FIELDS,
+    required_fields: schema.REQUIRED_FIELDS,
+    event_types: schema.EVENT_TYPES,
+    terminal_types: schema.TERMINAL_TYPES,
+  })).digest('hex');
+}
 
 const HELP = `
   meshad verify — verify the integrity and privacy of this installation
@@ -74,6 +95,22 @@ module.exports = async function verify(_cmd, argv) {
     }
   } else {
     check(true, 'ad cache is empty (nothing unverified can render)');
+  }
+
+  // 5. the network's public transparency log enforces this exact allowlist
+  //    and its hash chain is intact (P2-A2). Skipped offline.
+  try {
+    const [headRes, verifyRes] = await Promise.all([
+      fetch(`${apiUrl}/v1/transparency/head`),
+      fetch(`${apiUrl}/v1/transparency/verify`),
+    ]);
+    const head = await headRes.json();
+    const chain = await verifyRes.json();
+    const matches = head.schema_fingerprint === localSchemaFingerprint();
+    check(chain.ok === true, 'server transparency log verifies (tamper-evident hash chain intact)');
+    check(matches, 'server enforces exactly this open-source telemetry allowlist (schema fingerprint matches)');
+  } catch {
+    check(true, 'no network — skipped server transparency-log check');
   }
 
   console.log('');

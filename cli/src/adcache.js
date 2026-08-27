@@ -9,7 +9,9 @@
  *   and is cached in pubkey.json.
  * - Every ad is verified against the canonical JSON defined in CONTRACT.md:
  *   JSON.stringify of {ad_id, campaign_id, format, min_wait_ms,
- *   render:{text,lines,cta,color,emoji}} with keys in exactly that order.
+ *   render:{text,lines,cta,color,emoji,art_lines,frames,transition,loop}} with
+ *   keys in exactly that order. The last four are present only for ascii_panel,
+ *   and frames/transition/loop only when the creative is animated.
  * - An ad with a bad signature is dropped silently; a persistent counter
  *   (invalid_dropped_total) surfaces it in `meshad status`.
  */
@@ -35,6 +37,13 @@ function canonicalAdJson(ad) {
       cta: render.cta,
       color: render.color,
       emoji: render.emoji ?? null,
+      // Undefined for text formats (omitted by JSON.stringify, so their bytes
+      // are unchanged); for ascii_panel the art is signed with the rest, and a
+      // pack that tampers with a single span fails verification.
+      art_lines: render.art_lines,
+      frames: render.frames,
+      transition: render.transition,
+      loop: render.loop,
     },
   });
 }

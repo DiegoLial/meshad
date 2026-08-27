@@ -6,8 +6,8 @@
   "type": "commonjs",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DiegoLial/meshad.git",
-    "directory": "cli"
+    "url": "git+https://github.com/DiegoLial/meshad-core.git",
+    "directory": "apps/cli"
   },
   "homepage": "https://meshad.io",
   "keywords": [
@@ -27,5 +27,8 @@
   ],
   "engines": {
     "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test-force-exit --test test/*.test.js"
   }
 }

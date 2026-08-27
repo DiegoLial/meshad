@@ -14,7 +14,7 @@ const i18n = require('../i18n');
 const { AdCache } = require('../adcache');
 const { Telemetry } = require('../telemetry');
 const { IdleStateMachine } = require('../fsm');
-const { LineRenderer, formatAd } = require('../render');
+const { LineRenderer, Animator, buildTimeline, formatAd } = require('../render');
 const { makeEvent, loadWindow, saveWindow, estimateEarningsMicros } = require('../session');
 const { c, parseFlags, usd } = require('../util');
 
@@ -59,6 +59,7 @@ module.exports = async function demo(_cmd, argv) {
   const telemetry = new Telemetry({ dir, apiUrl });
   const adcache = new AdCache({ dir, apiUrl });
   const renderer = new LineRenderer(process.stdout);
+  const animator = new Animator(renderer);
   const fsm = new IdleStateMachine({
     minWaitMs: DEMO_MIN_WAIT_MS,
     capPerHour: cfg.frequency_cap_h,
@@ -102,7 +103,7 @@ module.exports = async function demo(_cmd, argv) {
         shownAd = ads[0]; // one unit per wait, never rotated
         const lines = formatAd(shownAd, process.stdout.columns || 80);
         if (isTTY) {
-          renderer.render(lines);
+          animator.play(buildTimeline(shownAd, process.stdout.columns || 80, process.stdout.rows || 24));
         } else {
           for (const l of lines) console.log(`  ${l}`); // demo without a TTY: plain lines (see README)
         }
@@ -120,7 +121,7 @@ module.exports = async function demo(_cmd, argv) {
   for (const action of endActions) {
     if (action.type === 'clear') {
       const t0 = process.hrtime.bigint();
-      renderer.clear(); // synchronous single write — the <100ms invariant
+      animator.stop(); // synchronous single write — the <100ms invariant
       clearMs = Number(process.hrtime.bigint() - t0) / 1e6;
     } else if (action.type === 'impression') {
       impression = action;
