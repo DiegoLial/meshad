@@ -120,7 +120,7 @@ module.exports = async function run(_cmd, argv) {
     if (!paused && !shownAd && ads.length > 0) {
       for (const action of fsm.tick(now)) {
         if (action.type === 'display') {
-          shownAd = ads[0]; // one unit per wait
+          shownAd = adcache.nextAd(ads) || ads[0]; // one unit per wait, rotating through the ranked pack
           // Static creatives yield a single-step timeline, so this is the same
           // single synchronous write they always were.
           animator.play(buildTimeline(shownAd, process.stdout.columns || 80, process.stdout.rows || 24));

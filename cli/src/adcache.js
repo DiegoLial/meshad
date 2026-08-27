@@ -114,6 +114,24 @@ class AdCache {
     return this._read(CACHE_FILE, null);
   }
 
+  /**
+   * Rotate through the ranked pack: each wait shows the next ad, cycling.
+   * The server already ranked the pack by the auction; cycling it spreads
+   * impressions across every paying campaign instead of burning the same
+   * top creative on the same person (each ad bills at its own price, so
+   * the network earns either way and the viewer sees variety). The cursor
+   * is persisted next to the cache and survives across invocations; it
+   * resets naturally when a new pack replaces the file.
+   */
+  nextAd(ads) {
+    if (!Array.isArray(ads) || ads.length === 0) return null;
+    const cache = this.peek() || {};
+    const cursor = Number.isInteger(cache.rotation_cursor) ? cache.rotation_cursor : 0;
+    const ad = ads[cursor % ads.length];
+    this._write(CACHE_FILE, { ...cache, rotation_cursor: (cursor + 1) % ads.length });
+    return ad;
+  }
+
   isFresh(cache = this.peek()) {
     if (!cache || !Array.isArray(cache.ads)) return false;
     return this.now() < cache.fetched_at + cache.ttl_seconds * 1000;

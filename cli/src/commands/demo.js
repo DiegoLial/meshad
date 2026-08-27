@@ -100,7 +100,7 @@ module.exports = async function demo(_cmd, argv) {
     if (paused || shownAd || ads.length === 0) return;
     for (const action of fsm.tick(Date.now())) {
       if (action.type === 'display') {
-        shownAd = ads[0]; // one unit per wait, never rotated
+        shownAd = adcache.nextAd(ads) || ads[0]; // one unit per wait, rotating through the ranked pack
         const lines = formatAd(shownAd, process.stdout.columns || 80);
         if (isTTY) {
           animator.play(buildTimeline(shownAd, process.stdout.columns || 80, process.stdout.rows || 24));
