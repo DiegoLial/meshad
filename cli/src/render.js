@@ -71,13 +71,20 @@ class LineRenderer {
       const height = Math.min(lines.length, rows - 1, MAX_ROWS_ART);
       if (height <= 0) return false;
 
-      let out = SAVE;
+      // Anti-flicker, two layers: (1) overwrite-with-padding instead of
+      // erase-then-repaint — a cleared line must never be visible between
+      // frames of an animation; the trailing ESC[K only clears what the
+      // padding did not reach, after the content is already painted.
+      // (2) DEC synchronized output (mode 2026): terminals that support it
+      // apply the whole frame atomically; the rest ignore it harmlessly.
+      let out = `${ESC}[?2026h${SAVE}`;
       for (let i = 0; i < height; i++) {
         const targetRow = rows - height + 1 + i;
-        const raw = sanitizeAnsiLine(String(lines[i] ?? ''), cols - 1);
-        out += `${ESC}[${targetRow};1H${ESC}[2K${raw}${ESC}[0m`;
+        const { text: raw, width } = sanitizeAnsiLine(String(lines[i] ?? ''), cols - 1);
+        const pad = ' '.repeat(Math.max(0, cols - 1 - width));
+        out += `${ESC}[${targetRow};1H${raw}${ESC}[0m${pad}${ESC}[K`;
       }
-      out += RESTORE;
+      out += `${RESTORE}${ESC}[?2026l`;
       this.stream.write(out);
       this.active = true;
       this.activeHeight = height;
@@ -98,11 +105,11 @@ class LineRenderer {
         return;
       }
       const rows = this.stream.rows || 24;
-      let out = SAVE;
+      let out = `${ESC}[?2026h${SAVE}`;
       for (let i = 0; i < this.activeHeight; i++) {
         out += `${ESC}[${rows - this.activeHeight + 1 + i};1H${ESC}[2K`;
       }
-      out += RESTORE;
+      out += `${RESTORE}${ESC}[?2026l`;
       this.stream.write(out);
     } catch {
       /* fail-closed: nothing to do */
@@ -144,7 +151,7 @@ function sanitizeAnsiLine(line, maxWidth) {
     if (i < styles.length) out += styles[i++];
   }
   while (i < styles.length) out += styles[i++]; // keep any trailing reset
-  return out;
+  return { text: out, width };
 }
 
 /**
