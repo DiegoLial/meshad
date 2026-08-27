@@ -27,6 +27,7 @@ const COMMANDS = {
   demo: { mod: 'demo', desc: 'Simulate an AI agent thinking and exercise the full ad flow' },
   run: { mod: 'run', desc: 'Wrap a command: meshad run -- <cmd> (idle = output silence > 1.5s)' },
   uninstall: { mod: 'uninstall', desc: 'Remove all local MeshAd data' },
+  update: { mod: 'update', desc: 'Update the CLI to the latest published version' },
 };
 
 function usage() {

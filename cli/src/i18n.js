@@ -17,6 +17,13 @@ const en = {
   'usage.tagline': "your agent's idle time becomes revenue.",
   'usage.unknown': 'unknown command "{cmd}"',
 
+  // update
+  'update.fetching': 'updating from v{version} — fetching {url} ...',
+  'update.noNpm': 'npm is required to update (it ships with Node.js).',
+  'update.failed': 'update failed — the npm install did not complete. Re-run with the one-liner: curl -fsSL https://meshad.io/install | sh',
+  'update.updated': 'updated v{from} → v{to}',
+  'update.current': 'already on the latest published version (v{version})',
+
   // shared
   'err.notInitialized': 'not initialized — run',
   'err.emailRequired': 'a valid e-mail is required',
@@ -126,6 +133,13 @@ const en = {
 const ptBR = {
   'usage.tagline': 'o tempo ocioso do seu agente paga a si mesmo.',
   'usage.unknown': 'comando desconhecido "{cmd}"',
+
+  // update
+  'update.fetching': 'atualizando a partir da v{version} — baixando {url} ...',
+  'update.noNpm': 'o npm é necessário para atualizar (ele vem com o Node.js).',
+  'update.failed': 'a atualização falhou — o npm install não completou. Rode de novo com o one-liner: curl -fsSL https://meshad.io/install | sh',
+  'update.updated': 'atualizado v{from} → v{to}',
+  'update.current': 'você já está na última versão publicada (v{version})',
 
   'err.notInitialized': 'não inicializado — rode',
   'err.emailRequired': 'um e-mail válido é obrigatório',
