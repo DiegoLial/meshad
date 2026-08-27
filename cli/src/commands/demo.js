@@ -12,7 +12,7 @@
 const config = require('../config');
 const i18n = require('../i18n');
 const { AdCache } = require('../adcache');
-const { Telemetry } = require('../telemetry');
+const { Telemetry, NullTelemetry } = require('../telemetry');
 const { IdleStateMachine } = require('../fsm');
 const { LineRenderer, Animator, buildTimeline, formatAd } = require('../render');
 const { makeEvent, loadWindow, saveWindow, estimateEarningsMicros } = require('../session');
@@ -56,17 +56,18 @@ module.exports = async function demo(_cmd, argv) {
   const isTTY = !!process.stdout.isTTY;
   const paused = config.isPaused(cfg);
 
-  const telemetry = new Telemetry({ dir, apiUrl });
+  const telemetry = cfg.dev_mode ? new NullTelemetry() : new Telemetry({ dir, apiUrl });
   const adcache = new AdCache({ dir, apiUrl });
   const renderer = new LineRenderer(process.stdout);
   const animator = new Animator(renderer);
   const fsm = new IdleStateMachine({
     minWaitMs: DEMO_MIN_WAIT_MS,
-    capPerHour: cfg.frequency_cap_h,
-    history: loadWindow(),
+    capPerHour: cfg.dev_mode ? Infinity : cfg.frequency_cap_h,
+    history: cfg.dev_mode ? [] : loadWindow(),
   });
 
   console.log('');
+  if (cfg.dev_mode) console.log(`  ${c.yellow(t('demo.devBanner'))}`);
   console.log(`  ${c.dim('$')} agent ${c.dim('"refactor the auth module to use the new session store"')}`);
 
   // ── idle_start: the agent went quiet ────────────────────────────────
@@ -135,7 +136,7 @@ module.exports = async function demo(_cmd, argv) {
     clearInterval(spinnerTimer);
     process.stdout.write('\r\x1b[K');
   }
-  saveWindow(fsm.history);
+  if (!cfg.dev_mode) saveWindow(fsm.history); // dev impressions never consume the real cap window
 
   // ── the fake agent answers ──────────────────────────────────────────
   console.log(`  ${c.green('✓')} Done (${(waitMs / 1000).toFixed(1)}s). Refactored ${c.bold('auth/session.ts')}: swapped the`);
@@ -153,13 +154,22 @@ module.exports = async function demo(_cmd, argv) {
     console.log(
       `  ${t('demo.summary', { shown: (impression.displayed_ms / 1000).toFixed(1), clear: clearMs.toFixed(1), sent })}`
     );
-    console.log(
-      `  ${c.bold(t('demo.earned', { amount: usd(earned) }))} ${c.dim(t('demo.earnedHint', { model: shownAd.pricing_model }))}`
-    );
+    if (cfg.dev_mode) {
+      console.log(`  ${c.yellow(t('demo.devEarned'))}`);
+    } else {
+      console.log(
+        `  ${c.bold(t('demo.earned', { amount: usd(earned) }))} ${c.dim(t('demo.earnedHint', { model: shownAd.pricing_model }))}`
+      );
+    }
   } else if (paused) {
     console.log(`  ${c.dim(t('demo.paused'))}`);
   } else if (!shownAd) {
-    console.log(`  ${c.dim(t('demo.noAd'))}`);
+    // Say WHICH gate blocked the ad — three causes bundled in one string made
+    // "why no ad?" the first support question this demo generated.
+    const reason = ads.length === 0
+      ? 'demo.noAdCache'
+      : !fsm.canDisplay(Date.now()) ? 'demo.noAdCap' : 'demo.noAdShort';
+    console.log(`  ${c.dim(t(reason, { cap: cfg.frequency_cap_h }))}`);
   } else {
     console.log(`  ${c.dim(t('demo.tooShort'))}`);
   }

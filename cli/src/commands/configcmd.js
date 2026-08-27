@@ -1,6 +1,7 @@
 'use strict';
 
 const config = require('../config');
+const i18n = require('../i18n');
 const { TERMINAL_TYPES } = require('../schema');
 const { c, parseFlags, pad } = require('../util');
 
@@ -14,9 +15,11 @@ const HELP = `
     frequency_cap_h         max ads per hour (integer 0..6; hard cap is 6)
     min_wait_ms             minimum wait before an ad may appear (≥ 2000)
     terminal_type_default   one of: ${TERMINAL_TYPES.join(', ')}
+    dev_mode                true/false — unlimited ads for integration testing;
+                            NOTHING is sent or billed while on (you earn $0)
 `;
 
-const WRITABLE = ['api_url', 'frequency_cap_h', 'min_wait_ms', 'terminal_type_default'];
+const WRITABLE = ['api_url', 'frequency_cap_h', 'min_wait_ms', 'terminal_type_default', 'dev_mode'];
 
 module.exports = async function configCmd(_cmd, argv) {
   const { flags, rest } = parseFlags(argv, { help: 'bool' });
@@ -65,6 +68,13 @@ module.exports = async function configCmd(_cmd, argv) {
       return 2;
     }
     cfg[key] = n;
+  } else if (key === 'dev_mode') {
+    if (value !== 'true' && value !== 'false') {
+      console.error(`${c.red('error:')} dev_mode must be true or false`);
+      return 2;
+    }
+    cfg[key] = value === 'true';
+    if (cfg[key]) console.log(c.yellow(i18n.t('config.devModeOn')));
   } else if (key === 'terminal_type_default') {
     if (!TERMINAL_TYPES.includes(value)) {
       console.error(`${c.red('error:')} terminal_type must be one of: ${TERMINAL_TYPES.join(', ')}`);

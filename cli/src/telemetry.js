@@ -163,4 +163,17 @@ class Telemetry {
   }
 }
 
-module.exports = { Telemetry, QUEUE_FILE, LAST_BATCH_FILE, MAX_BATCH };
+/**
+ * dev_mode telemetry: same interface, zero delivery. Nothing is queued, so a
+ * dev-mode impression physically cannot be billed or credited — the guarantee
+ * is structural, not a server-side filter.
+ */
+class NullTelemetry {
+  enqueue() {}
+  flushSoon() {}
+  async flush() {
+    return { sent: 0 };
+  }
+}
+
+module.exports = { Telemetry, NullTelemetry, QUEUE_FILE, LAST_BATCH_FILE, MAX_BATCH };

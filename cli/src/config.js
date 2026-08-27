@@ -19,6 +19,10 @@ const DEFAULTS = {
   anon_id: null,
   paused_until: null, // null | 'forever' | epoch ms (number)
   frequency_cap_h: 6,
+  // Developer mode: no frequency cap and NO telemetry delivery — ads render
+  // for integration testing but no impression is ever billed or credited.
+  // Unlimited-and-earning would be an impression-farming exploit by design.
+  dev_mode: false,
   min_wait_ms: 8000,
   terminal_type_default: 'other',
   lang: null, // null = auto (MESHAD_LANG → LANG env); or 'en' | 'pt-BR'

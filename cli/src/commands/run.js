@@ -13,7 +13,8 @@
 const { spawn } = require('node:child_process');
 const config = require('../config');
 const { AdCache } = require('../adcache');
-const { Telemetry } = require('../telemetry');
+const { Telemetry, NullTelemetry } = require('../telemetry');
+const i18n = require('../i18n');
 const { IdleStateMachine } = require('../fsm');
 const { LineRenderer, Animator, buildTimeline } = require('../render');
 const { makeEvent, loadWindow, saveWindow } = require('../session');
@@ -56,7 +57,7 @@ module.exports = async function run(_cmd, argv) {
   const dir = config.configDir();
   const apiUrl = config.apiUrl(cfg);
   const paused = config.isPaused(cfg);
-  const telemetry = new Telemetry({ dir, apiUrl });
+  const telemetry = cfg.dev_mode ? new NullTelemetry() : new Telemetry({ dir, apiUrl });
   const adcache = new AdCache({ dir, apiUrl });
   const renderer = new LineRenderer(process.stdout);
   // The animator owns playback; stop() halts any pending frame AND clears, so
@@ -64,9 +65,10 @@ module.exports = async function run(_cmd, argv) {
   const animator = new Animator(renderer);
   const fsm = new IdleStateMachine({
     minWaitMs: cfg.min_wait_ms,
-    capPerHour: cfg.frequency_cap_h,
-    history: loadWindow(),
+    capPerHour: cfg.dev_mode ? Infinity : cfg.frequency_cap_h,
+    history: cfg.dev_mode ? [] : loadWindow(),
   });
+  if (cfg.dev_mode) console.error(`  ${c.yellow(i18n.t('demo.devBanner'))}`);
 
   let ads = [];
   let shownAd = null;
@@ -93,7 +95,7 @@ module.exports = async function run(_cmd, argv) {
       }
     }
     shownAd = null;
-    saveWindow(fsm.history);
+    if (!cfg.dev_mode) saveWindow(fsm.history); // dev impressions never consume the real cap window
     telemetry.flushSoon();
   }
 

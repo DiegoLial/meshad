@@ -127,6 +127,12 @@ const en = {
   'demo.earnedHint': '({model} · check: meshad earnings)',
   'demo.paused': 'ads are paused — no ad was shown, no impression sent (meshad resume)',
   'demo.noAd': 'no ad shown (no eligible signed ad in cache, frequency cap hit, or wait < 3s)',
+  'demo.noAdCache': 'no ad shown — no eligible signed ad in the local cache (network unreachable, or nothing verified)',
+  'demo.noAdCap': 'no ad shown — frequency cap reached ({cap}/h). Testing? meshad config dev_mode true (unlimited, unbilled)',
+  'demo.noAdShort': 'no ad shown — the wait ended before the minimum display window',
+  'demo.devBanner': 'DEV MODE — unlimited ads, nothing sent, nothing billed (meshad config dev_mode false to leave)',
+  'demo.devEarned': 'dev mode — impression not billed and not credited ($0.00); no telemetry left this machine',
+  'config.devModeOn': 'dev mode ON: no frequency cap, but impressions are NOT billed and earn $0 — for integration testing only',
   'demo.tooShort': 'ad shown < 2s — not billable, no impression sent (by design)',
 };
 
@@ -236,6 +242,12 @@ const ptBR = {
   'demo.earnedHint': '({model} · confira: meshad earnings)',
   'demo.paused': 'anúncios pausados — nada foi exibido, nenhuma impressão enviada (meshad resume)',
   'demo.noAd': 'nenhum anúncio exibido (sem ad assinado elegível no cache, limite de frequência, ou espera < 3s)',
+  'demo.noAdCache': 'nenhum anúncio — sem ad assinado elegível no cache local (rede inacessível ou nada verificou)',
+  'demo.noAdCap': 'nenhum anúncio — limite de frequência atingido ({cap}/h). Testando? meshad config dev_mode true (ilimitado, sem faturar)',
+  'demo.noAdShort': 'nenhum anúncio — a espera terminou antes da janela mínima de exibição',
+  'demo.devBanner': 'MODO DEV — anúncios ilimitados, nada é enviado, nada é faturado (meshad config dev_mode false para sair)',
+  'demo.devEarned': 'modo dev — impressão não faturada e não creditada ($0,00); nenhuma telemetria saiu desta máquina',
+  'config.devModeOn': 'modo dev LIGADO: sem limite de frequência, mas impressões NÃO faturam e rendem $0 — só para teste de integração',
   'demo.tooShort': 'anúncio exibido < 2s — não faturável, nenhuma impressão enviada (por design)',
 };
 
