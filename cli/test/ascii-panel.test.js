@@ -52,17 +52,17 @@ const AD = {
 
 test('ascii_panel: several colours coexist on one line', () => {
   const rows = formatAd(AD, 100, 30);
-  assert.equal(rows.length, 3, 'two art lines + the mandatory sponsored line');
-  const codes = rows[0].match(/\x1b\[[0-9;]*m/g) || [];
+  assert.equal(rows.length, 5, 'panel borders + two art lines + the mandatory sponsored line');
+  const codes = rows[1].match(/\x1b\[[0-9;]*m/g) || [];
   assert.ok(codes.length >= 6, 'each span opens and resets its own style');
-  assert.ok(rows[0].includes('\x1b[1;96m'), 'bright cyan bold present');
-  assert.ok(rows[0].includes('\x1b[1;97m'), 'bright white bold present on the SAME line');
-  assert.ok(rows[1].includes('45m'), 'background colour is available');
+  assert.ok(rows[1].includes('\x1b[1;96m'), 'bright cyan bold present');
+  assert.ok(rows[1].includes('\x1b[1;97m'), 'bright white bold present on the SAME line');
+  assert.ok(rows[2].includes('45m'), 'background colour is available');
 });
 
 test('ascii_panel: the sponsored label is not optional', () => {
   const rows = formatAd(AD, 100, 30);
-  const last = visible(rows[rows.length - 1]);
+  const last = visible(rows[rows.length - 2]); // last row is the panel's bottom border
   assert.ok(last.includes('sponsored'), 'sponsored label always rendered');
   assert.ok(last.includes('meshad pause'), 'pause hint always rendered');
 });
@@ -122,12 +122,12 @@ test('ascii_panel: renders and clears exactly the rows it drew', () => {
   const rows = formatAd(AD, 100, 30);
 
   assert.ok(renderer.render(rows), 'drawn on a TTY');
-  assert.equal(renderer.activeHeight, 3);
-  assert.ok(writes[0].includes('\x1b[28;1H'), 'first art row lands 3 up from the bottom');
+  assert.equal(renderer.activeHeight, 5);
+  assert.ok(writes[0].includes('\x1b[26;1H'), 'the panel top lands 5 up from the bottom');
 
   renderer.clear();
   const cleared = writes[1];
-  for (const row of [28, 29, 30]) {
+  for (const row of [26, 27, 28, 29, 30]) {
     assert.ok(cleared.includes(`\x1b[${row};1H\x1b[2K`), `row ${row} erased`);
   }
   assert.equal(renderer.activeHeight, 0);
@@ -138,7 +138,7 @@ test('ascii_panel: the row ceiling holds even if a pack lies about its size', ()
   const renderer = new LineRenderer(stream);
   const tooMany = Array.from({ length: 40 }, (_, i) => `row ${i}`);
   renderer.render(tooMany);
-  assert.ok(renderer.activeHeight <= MAX_ROWS_ART, `never more than ${MAX_ROWS_ART} rows`);
+  assert.ok(renderer.activeHeight <= MAX_ROWS_ART + 2, `never more than ${MAX_ROWS_ART + 2} rows (art ceiling + panel borders)`);
 });
 
 test('rich_panel: the box closes — top and bottom borders both fit the ceiling', () => {
@@ -183,7 +183,7 @@ test('reveal: frames grow monotonically and end exactly at the static render', (
 
 test('reveal: the sponsored row is complete in EVERY frame', () => {
   for (const [i, frame] of revealFrames(AD, 100, 30).entries()) {
-    const last = visible(frame[frame.length - 1]);
+    const last = visible(frame[frame.length - 2]); // bottom border is the true last row
     assert.ok(last.includes('sponsored'), `frame ${i} lost the sponsored label`);
     assert.ok(last.includes('meshad pause'), `frame ${i} lost the pause hint`);
   }
@@ -228,7 +228,7 @@ test('timeline: the sponsored row is complete in EVERY step, transitions include
   const { steps } = buildTimeline(ANIMATED, 100, 30);
   assert.ok(steps.length > 2, 'wipe produces transition sub-steps');
   for (const [i, step] of steps.entries()) {
-    const last = visible(step.lines[step.lines.length - 1]);
+    const last = visible(step.lines[step.lines.length - 2]); // bottom border is the true last row
     assert.ok(last.includes('sponsored'), `step ${i} lost the sponsored label`);
     assert.ok(last.includes('meshad pause'), `step ${i} lost the pause hint`);
   }

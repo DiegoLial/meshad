@@ -105,5 +105,16 @@ module.exports = async function init(_cmd, argv) {
   console.log(
     `  ${t('init.tryIt', { demo: c.bold('meshad demo'), earnings: c.bold('meshad earnings'), pause: c.bold('meshad pause') })}`
   );
+
+  // Warm the ad cache so the very first wait has a signed pack on disk
+  // instead of racing the network. Best-effort: a failure here just means
+  // the first wait fetches like before.
+  try {
+    const { AdCache } = require('../adcache');
+    await new AdCache({ dir: config.configDir(), apiUrl: config.apiUrl(cfg) })
+      .getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default });
+  } catch {
+    /* first demo will fetch */
+  }
   return 0;
 };

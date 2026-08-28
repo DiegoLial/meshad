@@ -68,7 +68,7 @@ class LineRenderer {
       const lines = Array.isArray(payload) ? payload : [payload];
       const cols = this.stream.columns || 80;
       const rows = this.stream.rows || 24;
-      const height = Math.min(lines.length, rows - 1, MAX_ROWS_ART);
+      const height = Math.min(lines.length, rows - 1, MAX_ROWS_ART + 2); // +2: panel borders
       if (height <= 0) return false;
 
       // Anti-flicker, two layers: (1) overwrite-with-padding instead of
@@ -211,10 +211,16 @@ function formatAd(ad, cols = 80, rows = 24) {
     const art0 = firstArt(r);
     // Degrade to a single text line on a terminal too small for the art to read.
     if (cols >= MIN_COLS_ART && rows >= MIN_ROWS_ART && art0.length) {
+      const artInner = Math.min(
+        maxWidth - 4,
+        Math.max(20, ...art0.slice(0, MAX_ART_LINES).map((line) =>
+          (Array.isArray(line) ? line : []).reduce((w, sp) => w + displayWidth((sp && sp.t) || ''), 0)),
+        displayWidth(suffix)),
+      );
       const art = art0
         .slice(0, MAX_ART_LINES)
-        .map((line) => renderLine(line, maxWidth));
-      return [...art, wrap(sanitizeLine(suffix, maxWidth))];
+        .map((line) => renderLine(line, artInner));
+      return framePanel([...art, wrap(sanitizeLine(suffix, artInner))], artInner, code);
     }
     const flat = art0
       .map((line) => (Array.isArray(line) ? line.map((s) => (s && s.t) || '').join('') : ''))
@@ -281,21 +287,28 @@ function revealFrames(ad, cols = 80, rows = 24, steps = REVEAL_STEPS) {
   const maxWidth = Math.max(20, cols - 1);
   const artSpans = firstArt(r).slice(0, MAX_ART_LINES);
   if (!artSpans.length) return [final];
-  const suffixRow = final[final.length - 1];
   const widest = Math.max(
     1,
     ...artSpans.map((line) =>
       (Array.isArray(line) ? line : []).reduce((w, sp) => w + displayWidth((sp && sp.t) || ''), 0),
     ),
   );
-  const target = Math.min(widest, maxWidth);
+  // The panel is at its full size from the very first frame — only the art
+  // inside grows. Same width formula as formatAd, so the reveal's final frame
+  // can be the static render itself, byte for byte.
+  const code = colorCode(r.color);
+  const suffixPlain = `${r.cta || ''} · sponsored · (meshad pause)`;
+  const innerWidth = Math.min(maxWidth - 4, Math.max(20, widest, displayWidth(suffixPlain)));
+  const suffixRow = `\x1b[${code}m${sanitizeLine(suffixPlain, innerWidth)}`;
+  const target = Math.min(widest, innerWidth);
   const frameCount = Math.max(1, Math.min(steps, target));
 
   const frames = [];
-  for (let i = 1; i <= frameCount; i++) {
+  for (let i = 1; i < frameCount; i++) {
     const width = Math.ceil((target * i) / frameCount);
-    frames.push([...artSpans.map((line) => renderLine(line, width)), suffixRow]);
+    frames.push(drawFrame(artSpans.map((line) => sliceSpans(line, 0, width)), suffixRow, innerWidth, code));
   }
+  frames.push(final);
   return frames;
 }
 
@@ -308,8 +321,30 @@ const WIPE_STEPS = 14;
 const TYPE_STEP_MS = 18;
 
 /** Style one art line, plus the fixed sponsored row, into a drawable frame. */
-function drawFrame(artSpans, suffixRow, maxWidth) {
-  return [...artSpans.map((line) => renderLine(line, maxWidth)), suffixRow];
+/** Visible width of an already-ANSI-styled row. */
+function visibleWidth(s) {
+  return displayWidth(String(s).replace(SGR_RE, ''));
+}
+
+/**
+ * Wrap fully-rendered rows in a rounded panel. Presentation only — the border
+ * is drawn by the client from its own glyphs (no advertiser bytes, outside the
+ * signature like every other pixel of chrome). It exists so an ad reads as a
+ * clearly bounded object on screen, never as loose terminal output.
+ */
+function framePanel(rows, innerWidth, code) {
+  const b = (s) => `\x1b[${code}m${s}\x1b[0m`;
+  const top = b(`╭${'─'.repeat(innerWidth + 2)}╮`);
+  const bottom = b(`╰${'─'.repeat(innerWidth + 2)}╯`);
+  const body = rows.map((row) => {
+    const pad = ' '.repeat(Math.max(0, innerWidth - visibleWidth(row)));
+    return `${b('│')} ${row}\x1b[0m${pad} ${b('│')}`;
+  });
+  return [top, ...body, bottom];
+}
+
+function drawFrame(artSpans, suffixRow, innerWidth, code) {
+  return framePanel([...artSpans.map((line) => renderLine(line, innerWidth)), suffixRow], innerWidth, code);
 }
 
 /**
@@ -336,13 +371,22 @@ function buildTimeline(ad, cols = 80, rows = 24) {
   if (!frames.length) return { steps: [{ lines: staticLines, ms: 0 }], loop: false };
 
   const maxWidth = Math.max(20, cols - 1);
-  const suffixRow = staticLines[staticLines.length - 1];
   const transition = r.transition || 'cut';
   const loop = !!r.loop && frames.length > 1;
 
   const widthOf = (art) =>
     Math.max(0, ...art.map((line) => (Array.isArray(line) ? line : []).reduce(
       (w, sp) => w + displayWidth((sp && sp.t) || ''), 0)));
+
+  // The panel width is fixed across every step of every frame — a border that
+  // resizes mid-typewriter reads as glitching, not animating.
+  const code = colorCode(r.color);
+  const suffixPlain = `${r.cta || ''} · sponsored · (meshad pause)`;
+  const innerWidth = Math.min(
+    maxWidth - 4,
+    Math.max(20, ...frames.map((f) => widthOf(f.art_lines.slice(0, MAX_ART_LINES))), displayWidth(suffixPlain)),
+  );
+  const suffixRow = `\x1b[${code}m${sanitizeLine(suffixPlain, innerWidth)}`;
 
   const steps = [];
 
@@ -363,16 +407,16 @@ function buildTimeline(ad, cols = 80, rows = 24) {
           const gap = Math.max(0, edge - incoming.reduce((w, sp) => w + displayWidth(sp.t), 0));
           return [...incoming, ...(gap ? [{ t: ' '.repeat(gap) }] : []), ...outgoing];
         });
-        steps.push({ lines: drawFrame(composited, suffixRow, maxWidth), ms: WIPE_STEP_MS });
+        steps.push({ lines: drawFrame(composited, suffixRow, innerWidth, code), ms: WIPE_STEP_MS });
       }
     } else if (transition === 'typewriter' && target > 0) {
       const width = Math.min(widthOf(art), maxWidth);
       for (let w = 1; w <= width; w++) {
-        steps.push({ lines: drawFrame(art.map((l) => sliceSpans(l, 0, w)), suffixRow, maxWidth), ms: TYPE_STEP_MS });
+        steps.push({ lines: drawFrame(art.map((l) => sliceSpans(l, 0, w)), suffixRow, innerWidth, code), ms: TYPE_STEP_MS });
       }
     }
 
-    steps.push({ lines: drawFrame(art, suffixRow, maxWidth), ms: frame.hold_ms || DEFAULT_HOLD_MS });
+    steps.push({ lines: drawFrame(art, suffixRow, innerWidth, code), ms: frame.hold_ms || DEFAULT_HOLD_MS });
   });
 
   return { steps, loop };

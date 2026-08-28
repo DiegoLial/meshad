@@ -146,10 +146,41 @@ class AdCache {
     const cache = this.peek();
     if (this.isFresh(cache)) return cache.ads;
 
+    const refresh = this._refresh({ anonId, terminalType, max });
+
+    // Stale-while-revalidate: an expired pack is still a pack of signed,
+    // verified ads — showing one beats showing nothing while the refresh
+    // crosses the network (two round trips on a bad day). The refreshed pack
+    // is on disk for the next wait.
+    if (cache && Array.isArray(cache.ads) && cache.ads.length) {
+      refresh.catch(() => {});
+      return cache.ads;
+    }
+
+    // Cold start (no cache at all): the network is the only source. One
+    // retry absorbs the single dropped packet that would otherwise turn a
+    // fresh install's first wait into "no ad shown".
     try {
-      const publicKey = await this.getPublicKey();
+      return await refresh;
+    } catch {
+      try {
+        return await this._refresh({ anonId, terminalType, max });
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  /** Fetch + verify + persist a new pack. Concurrent callers share one flight. */
+  _refresh({ anonId, terminalType, max }) {
+    if (this._inflight) return this._inflight;
+    this._inflight = (async () => {
+      const cache = this.peek();
       const q = new URLSearchParams({ anon_id: anonId, terminal_type: terminalType, max: String(max) });
-      const pack = await this._get(`/v1/ads/pack?${q}`);
+      const [publicKey, pack] = await Promise.all([
+        this.getPublicKey(),
+        this._get(`/v1/ads/pack?${q}`),
+      ]);
       const all = Array.isArray(pack.ads) ? pack.ads : [];
       const ads = all.filter((ad) => verifyAd(ad, publicKey));
       const dropped = all.length - ads.length;
@@ -161,10 +192,10 @@ class AdCache {
         invalid_dropped_total: ((cache && cache.invalid_dropped_total) || 0) + dropped,
       });
       return ads;
-    } catch {
-      // Offline / bad response: keep serving the stale cache if any; never throw.
-      return (cache && cache.ads) || [];
-    }
+    })();
+    return this._inflight.finally(() => {
+      this._inflight = null;
+    });
   }
 }
 

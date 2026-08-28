@@ -29,6 +29,8 @@ const HELP = `
     --wait <s>   how long the fake agent thinks (default 12)
     --all        showcase: play EVERY ad in the current pack, one after the
                  other (preview only — nothing is sent, billed or credited)
+    --hold <s>   seconds each --all ad stays on screen (default: two animation
+                 cycles, min 5s, max 12s)
     --help
 `;
 
@@ -38,7 +40,7 @@ const DEMO_MIN_WAIT_MS = 3000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 module.exports = async function demo(_cmd, argv) {
-  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', help: 'bool' });
+  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', hold: 'string', help: 'bool' });
   if (flags.help) {
     console.log(HELP);
     return 0;
@@ -81,8 +83,12 @@ module.exports = async function demo(_cmd, argv) {
       if (isTTY) {
         const timeline = buildTimeline(ad, process.stdout.columns || 80, process.stdout.rows || 24);
         const cycleMs = (timeline.steps || []).reduce((s, st) => s + (st.ms || 0), 0);
+        // Two full cycles by default — one is over before the eye settles.
+        const holdMs = flags.hold
+          ? Math.max(2, Number(flags.hold) || 0) * 1000
+          : Math.min(Math.max(5000, cycleMs * 2), 12000);
         animator2.play(timeline);
-        await sleep(Math.min(Math.max(2500, cycleMs), 8000));
+        await sleep(holdMs);
         animator2.stop();
       } else {
         for (const l of formatAd(ad, process.stdout.columns || 80)) console.log(`  ${l}`);
