@@ -77,7 +77,16 @@ class LineRenderer {
       // padding did not reach, after the content is already painted.
       // (2) DEC synchronized output (mode 2026): terminals that support it
       // apply the whole frame atomically; the rest ignore it harmlessly.
-      let out = `${ESC}[?2026h${SAVE}`;
+      let out = `${ESC}[?2026h`;
+      if (!this.active) {
+        // First draw: push the host's current line (prompt, spinner) above the
+        // ad zone and fence scrolling out of it with a scroll region (DECSTBM).
+        // Without this, the shell's own bottom line sits inside the panel and
+        // every frame paints over it — "the Thinking… spinner vanished".
+        out += `${'\n'.repeat(height)}${ESC}[${height}A`;
+        out += `${SAVE}${ESC}[1;${Math.max(1, rows - height)}r${RESTORE}`;
+      }
+      out += SAVE;
       for (let i = 0; i < height; i++) {
         const targetRow = rows - height + 1 + i;
         const { text: raw, width } = sanitizeAnsiLine(String(lines[i] ?? ''), cols - 1);
@@ -109,7 +118,9 @@ class LineRenderer {
       for (let i = 0; i < this.activeHeight; i++) {
         out += `${ESC}[${rows - this.activeHeight + 1 + i};1H${ESC}[2K`;
       }
-      out += `${RESTORE}${ESC}[?2026l`;
+      // Release the scroll-region fence (DECSTBM homes the cursor, so this
+      // stays inside the SAVE/RESTORE bracket).
+      out += `${ESC}[r${RESTORE}${ESC}[?2026l`;
       this.stream.write(out);
     } catch {
       /* fail-closed: nothing to do */

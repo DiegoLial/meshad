@@ -28,8 +28,10 @@ const HELP = `
 
   Options:
     --wait <s>   how long the fake agent thinks (default 12)
-    --all        showcase: play EVERY ad in the current pack, one after the
-                 other (preview only — nothing is sent, billed or credited)
+    --all        showcase: play EVERY ad in the REAL network pack, one after
+                 the other (preview only — nothing is sent, billed or credited)
+    --h          hypothetical showcase: LOOP the bundled example pack forever
+                 (Ctrl+C stops; offline-safe, nothing sent or billed)
     --hold <s>   seconds each --all ad stays on screen (default: two animation
                  cycles, min 5s, max 12s)
     --help
@@ -41,7 +43,7 @@ const DEMO_MIN_WAIT_MS = 3000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 module.exports = async function demo(_cmd, argv) {
-  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', hold: 'string', help: 'bool' });
+  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', h: 'bool', hold: 'string', help: 'bool' });
   if (flags.help) {
     console.log(HELP);
     return 0;
@@ -64,9 +66,12 @@ module.exports = async function demo(_cmd, argv) {
   // ── --all: showcase every ad in the pack, back to back ──────────────
   // A preview, not a wait: no fsm, no cap window, no telemetry object at all —
   // nothing leaves the machine, nothing bills, nothing credits.
-  if (flags.all) {
+  if (flags.all || flags.h) {
+    // --all previews the REAL network pack (even in dev_mode — you are
+    // inspecting what production serves). --h loops the bundled hypothetical
+    // pack forever, offline-safe. Both are previews: nothing sent or billed.
     const showcase = new AdCache({ dir, apiUrl });
-    const ads = cfg.dev_mode
+    const ads = flags.h
       ? HYPOTHETICAL_ADS
       : await showcase.getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default });
     if (!ads.length) {
@@ -75,10 +80,14 @@ module.exports = async function demo(_cmd, argv) {
     }
     const renderer2 = new LineRenderer(process.stdout);
     const animator2 = new Animator(renderer2);
+    process.on('SIGINT', () => {
+      animator2.stop();
+      process.stdout.write('\n');
+      process.exit(0);
+    });
     console.log('');
-    console.log(`  ${c.yellow(t('demo.allBanner', { n: ads.length }))}`);
-    for (let k = 0; k < ads.length; k++) {
-      const ad = ads[k];
+    console.log(`  ${c.yellow(flags.h ? t('demo.hypBanner', { n: ads.length }) : t('demo.allBanner', { n: ads.length }))}`);
+    const showOne = async (ad, k) => {
       const label = (ad.render && ad.render.cta) || ad.ad_id;
       const price = `$${(Number(ad.price_micros) / 1e6).toFixed(2)} ${ad.pricing_model}`;
       console.log('');
@@ -96,7 +105,15 @@ module.exports = async function demo(_cmd, argv) {
       } else {
         for (const l of formatAd(ad, process.stdout.columns || 80)) console.log(`  ${l}`);
       }
+    };
+    if (flags.h) {
+      if (!isTTY) { // sem TTY, um passe único evita loop infinito num pipe
+        for (let k = 0; k < ads.length; k++) await showOne(ads[k], k);
+        return 0;
+      }
+      for (let k = 0; ; k = (k + 1) % ads.length) await showOne(ads[k], k);
     }
+    for (let k = 0; k < ads.length; k++) await showOne(ads[k], k);
     console.log('');
     console.log(`  ${c.dim(t('demo.allDone', { n: ads.length }))}`);
     return 0;
