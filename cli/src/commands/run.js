@@ -14,6 +14,7 @@ const { spawn } = require('node:child_process');
 const config = require('../config');
 const { AdCache } = require('../adcache');
 const { Telemetry, NullTelemetry } = require('../telemetry');
+const { HYPOTHETICAL_ADS } = require('../hypothetical');
 const i18n = require('../i18n');
 const { IdleStateMachine } = require('../fsm');
 const { LineRenderer, Animator, buildTimeline } = require('../render');
@@ -70,12 +71,12 @@ module.exports = async function run(_cmd, argv) {
   });
   if (cfg.dev_mode) console.error(`  ${c.yellow(i18n.t('demo.devBanner'))}`);
 
-  let ads = [];
+  let ads = cfg.dev_mode ? HYPOTHETICAL_ADS : [];
   let shownAd = null;
   let lastOutputAt = Date.now();
 
   // Pre-fetch off the hot path; the render path only ever reads memory.
-  adcache
+  if (!cfg.dev_mode) adcache
     .getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default })
     .then((a) => (ads = a))
     .catch(() => {});

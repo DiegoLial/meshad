@@ -13,6 +13,7 @@ const config = require('../config');
 const i18n = require('../i18n');
 const { AdCache } = require('../adcache');
 const { Telemetry, NullTelemetry } = require('../telemetry');
+const { HYPOTHETICAL_ADS } = require('../hypothetical');
 const { IdleStateMachine } = require('../fsm');
 const { LineRenderer, Animator, buildTimeline, formatAd } = require('../render');
 const { makeEvent, loadWindow, saveWindow, estimateEarningsMicros } = require('../session');
@@ -65,7 +66,9 @@ module.exports = async function demo(_cmd, argv) {
   // nothing leaves the machine, nothing bills, nothing credits.
   if (flags.all) {
     const showcase = new AdCache({ dir, apiUrl });
-    const ads = await showcase.getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default });
+    const ads = cfg.dev_mode
+      ? HYPOTHETICAL_ADS
+      : await showcase.getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default });
     if (!ads.length) {
       console.log(`  ${c.dim(t('demo.noAdCache'))}`);
       return 0;
@@ -120,11 +123,15 @@ module.exports = async function demo(_cmd, argv) {
   telemetry.flushSoon(); // fire-and-forget — never on the render path
 
   // Pre-fetch the signed pack concurrently; the render path only reads memory.
-  let ads = [];
-  const prefetch = adcache
-    .getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default })
-    .then((a) => (ads = a))
-    .catch(() => {});
+  // dev_mode: the bundled hypothetical pack replaces the network entirely —
+  // offline-safe, no real advertiser ever appears inside an experiment.
+  let ads = cfg.dev_mode ? HYPOTHETICAL_ADS : [];
+  const prefetch = cfg.dev_mode
+    ? Promise.resolve()
+    : adcache
+        .getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default })
+        .then((a) => (ads = a))
+        .catch(() => {});
 
   // ── spinner ─────────────────────────────────────────────────────────
   let frame = 0;
