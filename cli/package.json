@@ -1,7 +1,7 @@
 {
   "name": "@meshad/cli",
-  "version": "0.1.0",
-  "description": "MeshAd client CLI — monetize your AI agent's idle time. Detect wait, render one signed sponsored line, clear instantly.",
+  "version": "0.1.1",
+  "description": "MeshAd client CLI \u2014 monetize your AI agent's idle time. Detect wait, render one signed sponsored line, clear instantly.",
   "license": "Apache-2.0",
   "type": "commonjs",
   "repository": {

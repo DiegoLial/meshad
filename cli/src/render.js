@@ -32,7 +32,10 @@ const REVEAL_FRAME_MS = 25;
 
 /** Art needs room to read as art. Below this the ad degrades to one text line. */
 const MIN_COLS_ART = 60;
-const MIN_ROWS_ART = 20;
+// A framed panel is at most 8 rows; 12 leaves it room plus host breathing
+// space. (Was 20 — a pre-panel threshold that degraded perfectly viable
+// terminals to the flattened one-liner.)
+const MIN_ROWS_ART = 12;
 
 function colorCode(color) {
   return COLOR_CODES[color] || COLOR_CODES.dim;
@@ -233,9 +236,16 @@ function formatAd(ad, cols = 80, rows = 24) {
         .map((line) => renderLine(line, artInner));
       return framePanel([...art, wrap(sanitizeLine(suffix, artInner))], artInner, code);
     }
+    // Flattening keeps only word-bearing spans: bar/box glyphs (▇░█─╱╲…) are
+    // meaningless squashed into one line and read as garbage.
+    const GLYPH_ONLY = /^[\s▁▂▃▄▅▆▇█░▒▓─│╭╮╰╯╱╲◉●▮▲✓☁~≈]*$/;
     const flat = art0
-      .map((line) => (Array.isArray(line) ? line.map((s) => (s && s.t) || '').join('') : ''))
+      .map((line) => (Array.isArray(line) ? line : [])
+        .map((s) => ((s && s.t) || ''))
+        .filter((tx) => !GLYPH_ONLY.test(tx))
+        .join(''))
       .join(' ')
+      .replace(/\s+/g, ' ')
       .trim();
     const composed = composeWithSuffix(`${emojiPrefix}${flat || contentLines[0] || ''}`, suffix, maxWidth);
     return composed === null ? [] : [wrap(composed)];
