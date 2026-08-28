@@ -10,7 +10,7 @@
  * the next byte of output (or exit) = idle_end → clear first, always.
  */
 
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const config = require('../config');
 const { AdCache } = require('../adcache');
 const { Telemetry, NullTelemetry } = require('../telemetry');
@@ -48,6 +48,13 @@ module.exports = async function run(_cmd, argv) {
     console.error(`${c.red('error:')} no command given — usage: meshad run -- <cmd>`);
     return 2;
   }
+  if (cmdline[0].startsWith('-')) {
+    // "meshad run --claude" is a mistyped separator, not a flag we own.
+    const guess = cmdline[0].replace(/^-+/, '');
+    console.error(`${c.red('error:')} "${cmdline[0]}" looks like a mistyped separator — the command goes AFTER "--":`);
+    console.error(`  meshad run -- ${guess}${cmdline.length > 1 ? ' ' + cmdline.slice(1).join(' ') : ''}`);
+    return 2;
+  }
 
   const cfg = config.load();
   if (!cfg.anon_id) {
@@ -81,9 +88,19 @@ module.exports = async function run(_cmd, argv) {
     .then((a) => (ads = a))
     .catch(() => {});
 
-  const child = spawn(cmdline[0], cmdline.slice(1), {
-    stdio: ['inherit', 'pipe', 'pipe'],
-  });
+  // Interactive agent CLIs (Claude Code, aider) probe their stdout: a plain
+  // pipe flips them into non-interactive mode ("input must be provided…").
+  // Wrapping the child in a PTY via util-linux `script` keeps it fully
+  // interactive while we still observe the byte timing on our pipe. Zero new
+  // dependencies; falls back to a direct pipe when `script` is unavailable.
+  const shq = (s) => (/^[A-Za-z0-9_\/:=.,@%+-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
+  const hasScript =
+    process.stdout.isTTY &&
+    process.platform !== 'win32' &&
+    spawnSync('script', ['--version'], { stdio: 'ignore' }).status === 0;
+  const child = hasScript
+    ? spawn('script', ['-qefc', cmdline.map(shq).join(' '), '/dev/null'], { stdio: ['inherit', 'pipe', 'pipe'] })
+    : spawn(cmdline[0], cmdline.slice(1), { stdio: ['inherit', 'pipe', 'pipe'] });
 
   function endIdle() {
     for (const action of fsm.idleEnd(Date.now())) {
