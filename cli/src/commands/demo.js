@@ -32,6 +32,7 @@ const HELP = `
                  the other (preview only — nothing is sent, billed or credited)
     --h          hypothetical showcase: LOOP the bundled example pack forever
                  (Ctrl+C stops; offline-safe, nothing sent or billed)
+    --loop       with --all: loop the real pack forever too (Ctrl+C stops)
     --hold <s>   seconds each --all ad stays on screen (default: two animation
                  cycles, min 5s, max 12s)
     --help
@@ -43,7 +44,7 @@ const DEMO_MIN_WAIT_MS = 3000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 module.exports = async function demo(_cmd, argv) {
-  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', h: 'bool', hold: 'string', help: 'bool' });
+  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', h: 'bool', loop: 'bool', hold: 'string', help: 'bool' });
   if (flags.help) {
     console.log(HELP);
     return 0;
@@ -106,7 +107,7 @@ module.exports = async function demo(_cmd, argv) {
         for (const l of formatAd(ad, process.stdout.columns || 80)) console.log(`  ${l}`);
       }
     };
-    if (flags.h) {
+    if (flags.h || flags.loop) {
       if (!isTTY) { // sem TTY, um passe único evita loop infinito num pipe
         for (let k = 0; k < ads.length; k++) await showOne(ads[k], k);
         return 0;
