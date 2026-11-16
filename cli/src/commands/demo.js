@@ -35,7 +35,12 @@ const HELP = `
     --loop       with --all: loop the real pack forever too (Ctrl+C stops)
     --hold <s>   seconds each --all ad stays on screen (default: two animation
                  cycles, min 5s, max 12s)
+    --yes        accepted and ignored — demo never asks for an e-mail or consent
     --help
+
+  Without \`meshad init\` (no config on this machine), demo runs fully offline
+  against the bundled fictional example pack: no API call, no telemetry, no
+  billing and nothing is written to disk.
 `;
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -44,7 +49,7 @@ const DEMO_MIN_WAIT_MS = 3000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 module.exports = async function demo(_cmd, argv) {
-  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', h: 'bool', loop: 'bool', hold: 'string', help: 'bool' });
+  const { flags } = parseFlags(argv, { wait: 'string', all: 'bool', h: 'bool', loop: 'bool', hold: 'string', yes: 'bool', help: 'bool' });
   if (flags.help) {
     console.log(HELP);
     return 0;
@@ -54,10 +59,10 @@ module.exports = async function demo(_cmd, argv) {
   const cfg = config.load();
   i18n.init(cfg);
   const { t } = i18n;
-  if (!cfg.anon_id) {
-    console.error(`${c.red('error:')} ${t('err.notInitialized')} ${c.bold('meshad init')}`);
-    return 1;
-  }
+  // Offline mode: --h, dev_mode, or a machine that never ran `meshad init`.
+  // It plays the bundled fictional pack only — no API call, no telemetry, no
+  // cap window, no config write — so the first-run demo needs no account/e-mail.
+  const offline = !!(flags.h || cfg.dev_mode || !cfg.anon_id);
 
   const apiUrl = config.apiUrl(cfg);
   const dir = config.configDir();
@@ -69,10 +74,11 @@ module.exports = async function demo(_cmd, argv) {
   // nothing leaves the machine, nothing bills, nothing credits.
   if (flags.all || flags.h) {
     // --all previews the REAL network pack (even in dev_mode — you are
-    // inspecting what production serves). --h loops the bundled hypothetical
-    // pack forever, offline-safe. Both are previews: nothing sent or billed.
+    // inspecting what production serves) once initialized. --h — or --all on a
+    // machine with no init — plays the bundled hypothetical pack, offline-safe.
+    // Both are previews: nothing sent or billed.
     const showcase = new AdCache({ dir, apiUrl });
-    const ads = flags.h
+    const ads = flags.h || !cfg.anon_id
       ? HYPOTHETICAL_ADS
       : await showcase.getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default });
     if (!ads.length) {
@@ -120,18 +126,19 @@ module.exports = async function demo(_cmd, argv) {
     return 0;
   }
 
-  const telemetry = cfg.dev_mode ? new NullTelemetry() : new Telemetry({ dir, apiUrl });
+  const telemetry = offline ? new NullTelemetry() : new Telemetry({ dir, apiUrl });
   const adcache = new AdCache({ dir, apiUrl });
   const renderer = new LineRenderer(process.stdout);
   const animator = new Animator(renderer);
   const fsm = new IdleStateMachine({
     minWaitMs: DEMO_MIN_WAIT_MS,
-    capPerHour: cfg.dev_mode ? Infinity : cfg.frequency_cap_h,
-    history: cfg.dev_mode ? [] : loadWindow(),
+    capPerHour: offline ? Infinity : cfg.frequency_cap_h,
+    history: offline ? [] : loadWindow(),
   });
 
   console.log('');
   if (cfg.dev_mode) console.log(`  ${c.yellow(t('demo.devBanner'))}`);
+  else if (offline) console.log(`  ${c.yellow(t('demo.offlineBanner'))}`);
   console.log(`  ${c.dim('$')} agent ${c.dim('"refactor the auth module to use the new session store"')}`);
 
   // ── idle_start: the agent went quiet ────────────────────────────────
@@ -141,10 +148,10 @@ module.exports = async function demo(_cmd, argv) {
   telemetry.flushSoon(); // fire-and-forget — never on the render path
 
   // Pre-fetch the signed pack concurrently; the render path only reads memory.
-  // dev_mode: the bundled hypothetical pack replaces the network entirely —
-  // offline-safe, no real advertiser ever appears inside an experiment.
-  let ads = cfg.dev_mode ? HYPOTHETICAL_ADS : [];
-  const prefetch = cfg.dev_mode
+  // offline (dev_mode or no init): the bundled hypothetical pack replaces the
+  // network entirely — offline-safe, no real advertiser ever appears.
+  let ads = offline ? HYPOTHETICAL_ADS : [];
+  const prefetch = offline
     ? Promise.resolve()
     : adcache
         .getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default })
@@ -169,7 +176,8 @@ module.exports = async function demo(_cmd, argv) {
     if (paused || shownAd || ads.length === 0) return;
     for (const action of fsm.tick(Date.now())) {
       if (action.type === 'display') {
-        shownAd = adcache.nextAd(ads) || ads[0]; // one unit per wait, rotating through the ranked pack
+        // one unit per wait. Offline picks in memory — nextAd() persists a rotation cursor to disk.
+        shownAd = offline ? ads[Math.floor(Math.random() * ads.length)] : adcache.nextAd(ads) || ads[0];
         const lines = formatAd(shownAd, process.stdout.columns || 80);
         if (isTTY) {
           animator.play(buildTimeline(shownAd, process.stdout.columns || 80, process.stdout.rows || 24));
@@ -204,7 +212,7 @@ module.exports = async function demo(_cmd, argv) {
     clearInterval(spinnerTimer);
     process.stdout.write('\r\x1b[K');
   }
-  if (!cfg.dev_mode) saveWindow(fsm.history); // dev impressions never consume the real cap window
+  if (!offline) saveWindow(fsm.history); // offline impressions never consume the real cap window
 
   // ── the fake agent answers ──────────────────────────────────────────
   console.log(`  ${c.green('✓')} Done (${(waitMs / 1000).toFixed(1)}s). Refactored ${c.bold('auth/session.ts')}: swapped the`);
@@ -222,8 +230,8 @@ module.exports = async function demo(_cmd, argv) {
     console.log(
       `  ${t('demo.summary', { shown: (impression.displayed_ms / 1000).toFixed(1), clear: clearMs.toFixed(1), sent })}`
     );
-    if (cfg.dev_mode) {
-      console.log(`  ${c.yellow(t('demo.devEarned'))}`);
+    if (offline) {
+      console.log(`  ${c.yellow(t(cfg.dev_mode ? 'demo.devEarned' : 'demo.offlineEarned'))}`);
     } else {
       console.log(
         `  ${c.bold(t('demo.earned', { amount: usd(earned) }))} ${c.dim(t('demo.earnedHint', { model: shownAd.pricing_model }))}`

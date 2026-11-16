@@ -16,59 +16,16 @@
  *   (invalid_dropped_total) surfaces it in `meshad status`.
  */
 
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { meshFetch } = require('./net');
+const { canonicalAdJson, verifyAd } = require('./signature');
 
 const CACHE_FILE = 'cache.json';
 const PUBKEY_FILE = 'pubkey.json';
 
-/** Canonical JSON over the signed fields — key order is part of the contract. */
-function canonicalAdJson(ad) {
-  const render = ad.render || {};
-  return JSON.stringify({
-    ad_id: ad.ad_id,
-    campaign_id: ad.campaign_id,
-    format: ad.format,
-    min_wait_ms: ad.min_wait_ms,
-    render: {
-      text: render.text,
-      lines: render.lines,
-      cta: render.cta,
-      color: render.color,
-      emoji: render.emoji ?? null,
-      // Undefined for text formats (omitted by JSON.stringify, so their bytes
-      // are unchanged); for ascii_panel the art is signed with the rest, and a
-      // pack that tampers with a single span fails verification.
-      art_lines: render.art_lines,
-      frames: render.frames,
-      transition: render.transition,
-      loop: render.loop,
-    },
-  });
-}
-
-/** True iff ad.signature is a valid Ed25519 signature by publicKeyB64 (DER-SPKI). */
-function verifyAd(ad, publicKeyB64) {
-  try {
-    const key = crypto.createPublicKey({
-      key: Buffer.from(publicKeyB64, 'base64'),
-      format: 'der',
-      type: 'spki',
-    });
-    return crypto.verify(
-      null,
-      Buffer.from(canonicalAdJson(ad), 'utf8'),
-      key,
-      Buffer.from(String(ad.signature || ''), 'base64')
-    );
-  } catch {
-    return false;
-  }
-}
-
 class AdCache {
-  constructor({ dir, apiUrl, fetchImpl = globalThis.fetch, now = Date.now, timeoutMs = 3000 }) {
+  constructor({ dir, apiUrl, fetchImpl = meshFetch, now = Date.now, timeoutMs = 3000 }) {
     this.dir = dir;
     this.apiUrl = apiUrl;
     this.fetch = fetchImpl;

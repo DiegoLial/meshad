@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="assets/meshad-landing.png" alt="MeshAd product landing preview" width="920">
-</p>
-
 <h1 align="center">MeshAd</h1>
 
 <p align="center">
@@ -11,7 +7,6 @@
 <p align="center">
   <a href="https://meshad.io"><strong>Website</strong></a> ·
   <a href="https://api.meshad.io/healthz"><strong>API Health</strong></a> ·
-  <a href="#product-screenshots"><strong>Screenshots</strong></a> ·
   <a href="#how-it-works"><strong>How it works</strong></a>
 </p>
 
@@ -26,24 +21,16 @@ AI agents spend real time thinking, planning, indexing and executing. MeshAd tur
 - prompts, code, files, repositories and model responses never leave the user's machine;
 - publishers earn from useful, clearly-labelled sponsorships;
 - advertisers reach builders at the exact moment they are buying tools, infra and compute.
-- developers receive money through a controlled MeshAd ledger: earnings start pending, mature after antifraud checks, then can be paid out by Stripe/PayPal/USDC when the owner settles the payout in the admin console;
+- developers receive money through a controlled MeshAd ledger: earnings start pending, mature after antifraud checks, then become payable. Payouts are coming soon, via Stripe Connect, PayPal and USDC (Solana), with manual review at the start;
 - the owner keeps control over revenue share, publisher suspension, payout methods, moderation and payout settlement.
 
 > Never spy. Never interrupt. Never degrade.
 
 ## Product screenshots
 
-### Landing experience
-
-![MeshAd landing](assets/meshad-landing.png)
-
 ### Publisher dashboard
 
 ![MeshAd publisher dashboard](assets/meshad-publisher.png)
-
-### Advertiser dashboard
-
-![MeshAd advertiser dashboard](assets/meshad-advertiser.png)
 
 ## Install the CLI
 
@@ -110,6 +97,15 @@ remains private.
 
 ## Status
 
-MeshAd is in beta preparation for VPS deployment and domain launch.
+MeshAd is live at [meshad.io](https://meshad.io).
 
-If you believe agent workflows deserve a business model that respects developers, star this repository and follow the launch.
+- Try it with no account: `meshad demo` runs offline with fictional ads.
+- Revenue share: 60% of net revenue goes to the developer; the first 1,000 developers get 70% for their first 12 months.
+- Payouts: coming soon, via Stripe Connect, PayPal and USDC (Solana), with manual review at the start.
+
+```bash
+curl -fsSL https://meshad.io/install | sh
+meshad demo
+```
+
+If you believe agent workflows deserve a business model that respects developers, star this repository.
