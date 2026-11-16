@@ -48,14 +48,33 @@ AI agents spend real time thinking, planning, indexing and executing. MeshAd tur
 ## Install the CLI
 
 ```bash
-curl -fsSL https://meshad.io/install | sh
+npm install -g @meshad/cli
 meshad init
 ```
 
-The CLI's source lives in [`cli/`](cli) — mirrored here from the private core
-repository so it can be installed standalone, without access to the core
+Try it first, with no account: `npx @meshad/cli demo` plays fictional ads
+offline — no network, nothing saved. After install, `meshad demo` does the same.
+
+Alternatively: `curl -fsSL https://meshad.io/install | sh`.
+
+The CLI is published as [`@meshad/cli`](https://www.npmjs.com/package/@meshad/cli)
+0.2.0. Source lives in [`cli/`](cli) — mirrored here from the private core
+repository so it can also be installed standalone, without access to the core
 platform's source. See [`cli/README.md`](cli/README.md) for the full command
 reference and the privacy contract in detail.
+
+## Embed the SDK
+
+AI-tool vendors can embed MeshAd with [`@meshad/sdk`](https://www.npmjs.com/package/@meshad/sdk) 0.2.0:
+
+```bash
+npm install @meshad/sdk
+```
+
+`init()` is synchronous. Wrap any async model call with `withMeshAd`, or use
+the lifecycle hooks (`onRequestStart`, `onFirstToken`, `onRequestEnd`, …).
+New vendors should pass `terminalType: 'other'` until registered. Docs:
+[meshad.io/docs/sdk](https://meshad.io/docs/sdk).
 
 ## How it works
 
@@ -117,8 +136,8 @@ MeshAd is live at [meshad.io](https://meshad.io).
 - Payouts: coming soon, via Stripe Connect, PayPal and USDC (Solana), with manual review at the start.
 
 ```bash
-curl -fsSL https://meshad.io/install | sh
-meshad demo
+npx @meshad/cli demo
+# or: npm install -g @meshad/cli && meshad demo
 ```
 
 If you believe agent workflows deserve a business model that respects developers, star this repository.
