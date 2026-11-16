@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/meshad-landing.png" alt="MeshAd product landing preview" width="920">
+</p>
+
 <h1 align="center">MeshAd</h1>
 
 <p align="center">
@@ -7,6 +11,7 @@
 <p align="center">
   <a href="https://meshad.io"><strong>Website</strong></a> ·
   <a href="https://api.meshad.io/healthz"><strong>API Health</strong></a> ·
+  <a href="#product-screenshots"><strong>Screenshots</strong></a> ·
   <a href="#how-it-works"><strong>How it works</strong></a>
 </p>
 
@@ -28,9 +33,17 @@ AI agents spend real time thinking, planning, indexing and executing. MeshAd tur
 
 ## Product screenshots
 
-### Publisher dashboard
+### Landing experience
 
-![MeshAd publisher dashboard](assets/meshad-publisher.png)
+![MeshAd landing](assets/meshad-landing.png)
+
+### Publisher page
+
+![MeshAd publisher page](assets/meshad-publisher.png)
+
+### Advertiser dashboard
+
+![MeshAd advertiser dashboard](assets/meshad-advertiser.png)
 
 ## Install the CLI
 
