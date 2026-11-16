@@ -33,6 +33,31 @@ async function initialized(mockUrl) {
   return { dir, env };
 }
 
+test('e2e: demo --h runs the offline hypothetical showcase without init', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'meshad-e2e-hyp-'));
+  const env = { MESHAD_CONFIG_DIR: dir, MESHAD_LANG: 'en', NO_COLOR: '1' };
+  assert.equal(fs.existsSync(path.join(dir, 'config.json')), false);
+
+  const showcase = await cli(['demo', '--h'], env);
+  assert.equal(showcase.code, 0, showcase.stderr || showcase.stdout);
+  assert.match(showcase.stdout, /HYPOTHETICAL SHOWCASE/);
+  assert.doesNotMatch(`${showcase.stderr}\n${showcase.stdout}`, /not initialized/);
+
+});
+
+test('e2e: demo on a clean machine (no init, no email) runs offline: fictional ads, no network, no config written', async () => {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'meshad-e2e-clean-')), 'cfg');
+  // API URL points at a closed port: any network call would be visible as a failure/leak
+  const env = { MESHAD_CONFIG_DIR: dir, MESHAD_API_URL: 'http://127.0.0.1:9', MESHAD_LANG: 'en', NO_COLOR: '1' };
+
+  const r = await cli(['demo', '--wait', '5', '--yes'], env);
+  assert.equal(r.code, 0, r.stderr || r.stdout);
+  assert.match(r.stdout, /OFFLINE DEMO/);
+  assert.match(r.stdout, /Done \(5\.0s\)/);
+  assert.doesNotMatch(`${r.stderr}\n${r.stdout}`, /not initialized|--email/);
+  assert.equal(fs.existsSync(dir), false, 'demo must not create the config dir');
+});
+
 test('e2e: demo completes the full flow and the mock receives a plausible impression', async () => {
   const mock = await startMockServer();
   const { env } = await initialized(mock.url);

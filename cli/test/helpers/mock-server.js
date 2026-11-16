@@ -83,11 +83,20 @@ function startMockServer({ minWaitMs = 3000, tamperSignatures = false } = {}) {
 
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
+      const url = `http://127.0.0.1:${server.address().port}`;
+      // net.js only lets the client reach this loopback mock via the documented
+      // developer override — the same MESHAD_API_URL escape hatch a dev uses to
+      // point at a self-hosted gateway. Setting it here keeps the egress
+      // allowlist fully enforced in tests instead of poking a hole in net.js.
+      const prevApiUrl = process.env.MESHAD_API_URL;
+      process.env.MESHAD_API_URL = url;
       resolve({
-        url: `http://127.0.0.1:${server.address().port}`,
+        url,
         received,
         close: () =>
           new Promise((r) => {
+            if (prevApiUrl === undefined) delete process.env.MESHAD_API_URL;
+            else process.env.MESHAD_API_URL = prevApiUrl;
             // fetch()'s pooled keep-alive sockets would otherwise hold close() forever
             server.closeAllConnections();
             server.close(r);

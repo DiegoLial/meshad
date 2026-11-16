@@ -15,3 +15,11 @@ test('every bundled hypothetical ad honors the creative contract', () => {
     assert.ok(v.ok, `${ad.ad_id}: ${v.ok ? '' : v.reasons.join(', ')}`);
   }
 });
+
+test('hypothetical pack uses only fictional brands (no real trademarks)', () => {
+  const REAL = /vercel|docker|copilot|stripe|mongo|aws|amazon|neon\b|datadog|cloudflare|tailscale|supabase|redis|sentry|\bbun\b|\bnpm\b|fly\.io|digitalocean|grafana|\bv0\b|linear|github|\bgh\b/i;
+  for (const ad of HYPOTHETICAL_ADS) {
+    const text = [ad.ad_id, ad.render.cta, ...ad.render.frames.flatMap((f) => f.art_lines.flat().map((sp) => sp.t))].join(' ');
+    assert.doesNotMatch(text, REAL, `${ad.ad_id} mentions a real brand`);
+  }
+});

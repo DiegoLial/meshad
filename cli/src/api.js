@@ -2,10 +2,12 @@
 
 /** Thin HTTP helper for the publisher API (CONTRACT.md). */
 
+const { meshFetch } = require('./net');
+
 async function request(apiUrl, method, pathname, { body, apiKey, timeoutMs = 5000 } = {}) {
   const headers = { 'content-type': 'application/json' };
   if (apiKey) headers.authorization = `Bearer ${apiKey}`;
-  const res = await fetch(`${apiUrl}${pathname}`, {
+  const res = await meshFetch(`${apiUrl}${pathname}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),

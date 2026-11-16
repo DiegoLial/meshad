@@ -15,6 +15,7 @@ const i18n = require('../i18n');
 const schema = require('../schema');
 const { validateEvent } = schema;
 const { AdCache } = require('../adcache');
+const { meshFetch, ALLOWED_HOSTS } = require('../net');
 const { c, parseFlags } = require('../util');
 
 // Same canonicalization + fingerprint as apps/api/src/transparency.js, so the
@@ -77,9 +78,18 @@ module.exports = async function verify(_cmd, argv) {
   }
   check(mode === null || mode === 0o600, `config file permissions are 0600 (${mode === null ? 'not initialized' : '0' + mode.toString(8)})`);
 
-  // 3. egress allowlist
+  // 3. egress allowlist — the destination host must be one the hard-coded
+  //    allowlist in net.js actually permits, not merely an http(s) URL. The
+  //    dev override (MESHAD_API_URL to a non-public host) is reported honestly.
   const dest = new URL(apiUrl);
-  check(['http:', 'https:'].includes(dest.protocol), `single egress destination: ${apiUrl} (telemetry, ads, keys, publisher API)`);
+  const onAllowlist = ALLOWED_HOSTS.has(dest.host);
+  const devOverride = !!process.env.MESHAD_API_URL && !onAllowlist;
+  check(
+    ['http:', 'https:'].includes(dest.protocol) && (onAllowlist || devOverride),
+    onAllowlist
+      ? `egress host on hard-coded allowlist: ${dest.host} (${[...ALLOWED_HOSTS].join(', ')})`
+      : `egress host is a DEV OVERRIDE (${dest.host}) — pinning/allowlist disabled for it`,
+  );
 
   // 4. cached pack signatures
   const cache = new AdCache({ dir, apiUrl });
@@ -101,8 +111,8 @@ module.exports = async function verify(_cmd, argv) {
   //    and its hash chain is intact (P2-A2). Skipped offline.
   try {
     const [headRes, verifyRes] = await Promise.all([
-      fetch(`${apiUrl}/v1/transparency/head`),
-      fetch(`${apiUrl}/v1/transparency/verify`),
+      meshFetch(`${apiUrl}/v1/transparency/head`),
+      meshFetch(`${apiUrl}/v1/transparency/verify`),
     ]);
     const head = await headRes.json();
     const chain = await verifyRes.json();

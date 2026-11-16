@@ -73,6 +73,16 @@ function validateEvent(ev) {
   return { ok: errors.length === 0, errors };
 }
 
+/** Same anon_id rule the telemetry contract enforces (lowercase UUID). */
+function isAnonId(value) {
+  return typeof value === 'string' && UUID_RE.test(value);
+}
+
+/** Same terminal_type rule the telemetry contract enforces. */
+function isTerminalType(value) {
+  return TERMINAL_TYPES.includes(value);
+}
+
 /**
  * Validate a batch. The whole batch is rejected if ANY event is invalid —
  * an official client can never legitimately produce a partially valid batch.
@@ -95,4 +105,6 @@ module.exports = {
   REQUIRED_FIELDS,
   validateEvent,
   validateBatch,
+  isAnonId,
+  isTerminalType,
 };

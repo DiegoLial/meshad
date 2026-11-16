@@ -23,6 +23,10 @@ test('vendored schema constants match packages/schema exactly', () => {
   assert.deepEqual(vendored.ALLOWED_FIELDS, canonical.ALLOWED_FIELDS);
   assert.deepEqual(vendored.REQUIRED_FIELDS, canonical.REQUIRED_FIELDS);
   assert.equal(vendored.SCHEMA_VERSION, canonical.SCHEMA_VERSION);
+  assert.equal(vendored.isAnonId('not-a-uuid'), canonical.isAnonId('not-a-uuid'));
+  assert.equal(vendored.isAnonId('9f0c1b2a-3d4e-4f5a-8b6c-7d8e9f0a1b2c'), true);
+  assert.equal(vendored.isTerminalType('browser'), canonical.isTerminalType('browser'));
+  assert.equal(vendored.isTerminalType('claude-code'), true);
 });
 
 test('vendored validateEvent behaves identically to packages/schema on the same inputs', () => {

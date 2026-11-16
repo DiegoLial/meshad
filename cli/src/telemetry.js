@@ -19,6 +19,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { validateEvent, validateBatch } = require('./schema');
+const { meshFetch } = require('./net');
 
 const QUEUE_FILE = 'queue.json';
 const LAST_BATCH_FILE = 'last-batch.json';
@@ -28,7 +29,7 @@ class Telemetry {
   constructor({
     dir,
     apiUrl,
-    fetchImpl = globalThis.fetch,
+    fetchImpl = meshFetch,
     now = Date.now,
     maxAttempts = 3,
     timeoutMs = 3000,
