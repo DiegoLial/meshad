@@ -18,9 +18,13 @@ npm test                           # testes (FSM, telemetria, cache, render, sch
 ## Instalar como usuário final (fora do monorepo)
 
 ```bash
-npm install -g .          # a partir deste diretório, ou de um clone do mirror público
+npm install -g @meshad/cli   # pacote publicado no npm (0.2.0)
+meshad demo                  # anúncios fictícios, offline, sem conta
 meshad init
 ```
+
+Sem instalar: `npx @meshad/cli demo`. Alternativas: `curl -fsSL https://meshad.io/install | sh`
+ou, a partir deste diretório (ou de um clone do mirror público), `npm install -g .`.
 
 ## Privacidade em 10 linhas
 
