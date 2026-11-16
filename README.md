@@ -37,9 +37,9 @@ AI agents spend real time thinking, planning, indexing and executing. MeshAd tur
 
 ![MeshAd landing](assets/meshad-landing.png)
 
-### Publisher page
+### Publisher dashboard
 
-![MeshAd publisher page](assets/meshad-publisher.png)
+![MeshAd publisher dashboard](assets/meshad-publisher.png)
 
 ### Advertiser dashboard
 
