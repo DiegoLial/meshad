@@ -14,9 +14,11 @@ const assert = require('node:assert');
 const path = require('node:path');
 
 const vendored = require('../src/schema');
-const canonical = require(path.join(__dirname, '..', '..', '..', 'packages', 'schema'));
+const canonicalPath = path.join(__dirname, '..', '..', '..', 'packages', 'schema');
+const inMonorepo = require('node:fs').existsSync(path.join(canonicalPath, 'package.json'));
+const canonical = inMonorepo ? require(canonicalPath) : null;
 
-test('vendored schema constants match packages/schema exactly', () => {
+test('vendored schema constants match packages/schema exactly', { skip: inMonorepo ? false : 'packages/schema is not in the public mirror' }, () => {
   assert.deepEqual(vendored.TELEMETRY_SCHEMA, canonical.TELEMETRY_SCHEMA);
   assert.deepEqual(vendored.EVENT_TYPES, canonical.EVENT_TYPES);
   assert.deepEqual(vendored.TERMINAL_TYPES, canonical.TERMINAL_TYPES);
@@ -29,7 +31,7 @@ test('vendored schema constants match packages/schema exactly', () => {
   assert.equal(vendored.isTerminalType('claude-code'), true);
 });
 
-test('vendored validateEvent behaves identically to packages/schema on the same inputs', () => {
+test('vendored validateEvent behaves identically to packages/schema on the same inputs', { skip: inMonorepo ? false : 'packages/schema is not in the public mirror' }, () => {
   const cases = [
     { event: 'idle_start', ts: new Date().toISOString(), anon_id: '9f0c1b2a-3d4e-4f5a-8b6c-7d8e9f0a1b2c', terminal_type: 'claude-code', sdk_version: '0.1.0' },
     { event: 'impression', ts: new Date().toISOString(), anon_id: '9f0c1b2a-3d4e-4f5a-8b6c-7d8e9f0a1b2c', terminal_type: 'claude-code', sdk_version: '0.1.0', ad_id: 'ad_mock1aaaa', duration_ms: 3000 },

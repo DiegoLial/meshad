@@ -8,6 +8,7 @@
 
 const http = require('node:http');
 const crypto = require('node:crypto');
+const { canonicalAdJson: realCanonicalAdJson } = require('../../src/signature');
 
 function canonicalAdJson(ad) {
   return JSON.stringify({
@@ -25,11 +26,12 @@ function canonicalAdJson(ad) {
   });
 }
 
-function startMockServer({ minWaitMs = 3000, tamperSignatures = false } = {}) {
+function startMockServer({ minWaitMs = 3000, tamperSignatures = false, gameAd = null } = {}) {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
   const publicKeyB64 = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
 
-  const received = { batches: [], events: [] };
+  // `games`: every leaderboard call, with the Authorization header as sent.
+  const received = { batches: [], events: [], games: [] };
 
   const makeAd = (n) => {
     const text = `▲ MockTool ${n} — ship faster`;
@@ -45,6 +47,24 @@ function startMockServer({ minWaitMs = 3000, tamperSignatures = false } = {}) {
     return { ...ad, price_micros: 8000, pricing_model: 'cpm', signature };
   };
 
+  // A signed ascii_panel ad carrying render.game, using the REAL canonical form
+  // (the legacy local copy above predates art_lines/game). `gameAd` = 'runner'|'termo'.
+  const makeGameAd = (game) => {
+    const ad = {
+      ad_id: `ad_game${game}`,
+      campaign_id: 'cmp_game',
+      format: 'ascii_panel',
+      min_wait_ms: minWaitMs,
+      render: {
+        text: 'Mock Game Skin', lines: ['Mock Game Skin'], cta: 'mesh.io/game', color: 'cyan', emoji: null,
+        art_lines: [[{ t: ' MOCK SKIN ', fg: 'bright_white', bold: true }]],
+        game,
+      },
+    };
+    const signature = crypto.sign(null, Buffer.from(realCanonicalAdJson(ad)), privateKey).toString('base64');
+    return { ...ad, price_micros: 8000, pricing_model: 'cpm', signature };
+  };
+
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     const json = (status, body) => {
@@ -56,7 +76,7 @@ function startMockServer({ minWaitMs = 3000, tamperSignatures = false } = {}) {
       return json(200, { algorithm: 'ed25519', public_key_b64: publicKeyB64 });
     }
     if (req.method === 'GET' && url.pathname === '/v1/ads/pack') {
-      return json(200, { pack_id: 'pk_mock', ttl_seconds: 900, ads: [makeAd(1), makeAd(2)] });
+      return json(200, { pack_id: 'pk_mock', ttl_seconds: 900, ads: [...(gameAd ? [makeGameAd(gameAd)] : []), makeAd(1), makeAd(2)] });
     }
     if (req.method === 'POST' && url.pathname === '/v1/telemetry/events') {
       let body = '';
@@ -66,6 +86,28 @@ function startMockServer({ minWaitMs = 3000, tamperSignatures = false } = {}) {
         received.batches.push(parsed);
         received.events.push(...parsed.events);
         json(202, { accepted: parsed.events.length });
+      });
+      return;
+    }
+    if (url.pathname.startsWith('/v1/games/')) {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        const parsed = body ? JSON.parse(body) : null;
+        received.games.push({ method: req.method, path: url.pathname, auth: req.headers.authorization || null, body: parsed });
+        if (req.method === 'POST' && url.pathname === '/v1/games/handles') {
+          if (parsed.handle === 'taken_one') return json(409, { error: { code: 'handle_taken', message: 'that handle is already taken' } });
+          return json(201, { handle: parsed.handle, token: `gh_${'M'.repeat(40)}` });
+        }
+        if (req.method === 'POST' && url.pathname === '/v1/games/scores') {
+          if (parsed.score === 999) return json(422, { error: { code: 'replay_mismatch', message: 'nope' } });
+          return json(201, { accepted: true, handle: 'mockhandle', game: parsed.game, date: parsed.date, score: parsed.score, best: parsed.score, improved: true });
+        }
+        if (req.method === 'DELETE' && url.pathname === '/v1/games/handles/me') {
+          res.writeHead(204);
+          return res.end();
+        }
+        json(404, { error: { code: 'not_found', message: url.pathname } });
       });
       return;
     }

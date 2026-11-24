@@ -25,7 +25,8 @@ const COMMANDS = {
   'rotate-id': { mod: 'rotate', desc: 'Generate a new anon_id and re-register the device' },
   report: { mod: 'report', desc: 'Report an ad: meshad report <ad_id>' },
   demo: { mod: 'demo', desc: 'Simulate an AI agent thinking and exercise the full ad flow' },
-  run: { mod: 'run', desc: 'Wrap a command: meshad run -- <cmd> (idle = output silence > 1.5s)' },
+  run: { mod: 'run', desc: 'Wrap a command: meshad run [--play] -- <cmd> (idle = output silence > 1.5s)' },
+  play: { mod: 'play', desc: 'Play a tiny game while your agent thinks: meshad play [runner|termo]' },
   uninstall: { mod: 'uninstall', desc: 'Remove all local MeshAd data' },
   update: { mod: 'update', desc: 'Update the CLI to the latest published version' },
 };

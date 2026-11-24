@@ -44,7 +44,7 @@ function colorCode(color) {
 /** Strip control/newline characters and clamp width — never trust ad content blindly. */
 function sanitizeLine(s, maxWidth) {
   return truncateToWidth(
-    String(s ?? '').replace(/[\r\n\x00-\x08\x0b-\x1f]/g, ' '),
+    String(s ?? '').replace(/[\r\n\x00-\x08\x0b-\x1f\x7f-\x9f]/g, ' '),
     Math.max(0, maxWidth),
   );
 }
@@ -151,7 +151,7 @@ function sanitizeAnsiLine(line, maxWidth) {
     styles.push(m);
     return '\x00SGR\x01';
   });
-  const scrubbed = parked.replace(/[\r\n\x1b\x02-\x08\x0b-\x1f\x7f]/g, ' ');
+  const scrubbed = parked.replace(/[\r\n\x1b\x02-\x08\x0b-\x1f\x7f-\x9f]/g, ' ');
 
   let width = 0;
   let out = '';
@@ -501,6 +501,6 @@ class Animator {
 
 module.exports = {
   LineRenderer, formatAd, revealFrames, buildTimeline, Animator, colorCode, COLOR_CODES, FG_CODES,
-  REVEAL_STEPS, REVEAL_FRAME_MS,
+  REVEAL_STEPS, REVEAL_FRAME_MS, sanitizeLine, sanitizeAnsiLine,
   MAX_ROWS_TEXT, MAX_ROWS_ART, MIN_COLS_ART, MIN_ROWS_ART,
 };

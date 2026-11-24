@@ -7,6 +7,8 @@
  *   their TTL; nothing on the render path ever touches the network.
  * - The signing public key comes from GET /v1/keys/public (DER-SPKI base64)
  *   and is cached in pubkey.json.
+ * - The pack request declares `features=game`: this client verifies render.game
+ *   (older ones would drop such ads, so the server leaves them out for them).
  * - Every ad is verified against the canonical JSON defined in CONTRACT.md:
  *   JSON.stringify of {ad_id, campaign_id, format, min_wait_ms,
  *   render:{text,lines,cta,color,emoji,art_lines,frames,transition,loop}} with
@@ -20,9 +22,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { meshFetch } = require('./net');
 const { canonicalAdJson, verifyAd } = require('./signature');
+const { writeFileAtomic } = require('./config');
 
 const CACHE_FILE = 'cache.json';
 const PUBKEY_FILE = 'pubkey.json';
+/** Cached signing key is re-fetched once older than this. */
+const PUBKEY_TTL_MS = 24 * 60 * 60 * 1000;
 
 class AdCache {
   constructor({ dir, apiUrl, fetchImpl = meshFetch, now = Date.now, timeoutMs = 3000 }) {
@@ -42,8 +47,8 @@ class AdCache {
   }
 
   _write(name, data) {
-    fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(path.join(this.dir, name), JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
+    // Atomic: `meshad play` reads cache.json while `meshad run` rewrites it.
+    writeFileAtomic(this.dir, name, JSON.stringify(data, null, 2) + '\n');
   }
 
   async _get(pathname) {
@@ -54,10 +59,19 @@ class AdCache {
     return res.json();
   }
 
-  /** Signing key (base64 DER-SPKI), cached on disk after first fetch. */
+  /** Signing key (base64 DER-SPKI), cached on disk and re-fetched after PUBKEY_TTL_MS. */
   async getPublicKey() {
     const cached = this._read(PUBKEY_FILE, null);
-    if (cached && cached.public_key_b64) return cached.public_key_b64;
+    if (
+      cached &&
+      cached.algorithm === 'ed25519' &&
+      cached.public_key_b64 &&
+      Number.isFinite(cached.fetched_at) &&
+      this.now() - cached.fetched_at >= 0 &&
+      this.now() - cached.fetched_at < PUBKEY_TTL_MS
+    ) {
+      return cached.public_key_b64;
+    }
     const body = await this._get('/v1/keys/public');
     if (!body || body.algorithm !== 'ed25519' || !body.public_key_b64) {
       throw new Error('unexpected /v1/keys/public response');
@@ -133,7 +147,7 @@ class AdCache {
     if (this._inflight) return this._inflight;
     this._inflight = (async () => {
       const cache = this.peek();
-      const q = new URLSearchParams({ anon_id: anonId, terminal_type: terminalType, max: String(max) });
+      const q = new URLSearchParams({ anon_id: anonId, terminal_type: terminalType, max: String(max), features: 'game' });
       const [publicKey, pack] = await Promise.all([
         this.getPublicKey(),
         this._get(`/v1/ads/pack?${q}`),
@@ -156,4 +170,4 @@ class AdCache {
   }
 }
 
-module.exports = { AdCache, canonicalAdJson, verifyAd, CACHE_FILE, PUBKEY_FILE };
+module.exports = { AdCache, canonicalAdJson, verifyAd, CACHE_FILE, PUBKEY_FILE, PUBKEY_TTL_MS };

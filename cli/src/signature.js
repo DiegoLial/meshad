@@ -33,6 +33,9 @@ function canonicalAdJson(ad) {
       frames: render.frames,
       transition: render.transition,
       loop: render.loop,
+      // Optional playable-game skin id (ascii_panel only). Undefined → omitted,
+      // so every ad signed before `game` existed keeps its exact bytes.
+      game: render.game,
     },
   });
 }

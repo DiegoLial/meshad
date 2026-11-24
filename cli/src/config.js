@@ -84,10 +84,26 @@ function readJson(name, fallback = null) {
   }
 }
 
-function writeJson(name, data) {
-  const dir = configDir();
+/**
+ * Write `content` to <dir>/<name> atomically: tmp file in the same directory +
+ * rename, so a concurrent reader (`meshad play` reading what `meshad run`
+ * writes) sees the old file or the new one, never a torn half-write.
+ */
+function writeFileAtomic(dir, name, content) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(dir, name), JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
+  const target = path.join(dir, name);
+  const tmp = `${target}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  try {
+    fs.writeFileSync(tmp, content, { mode: 0o600 });
+    fs.renameSync(tmp, target);
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch { /* already gone */ }
+    throw err;
+  }
+}
+
+function writeJson(name, data) {
+  writeFileAtomic(configDir(), name, JSON.stringify(data, null, 2) + '\n');
 }
 
 module.exports = {
@@ -102,4 +118,5 @@ module.exports = {
   isPaused,
   readJson,
   writeJson,
+  writeFileAtomic,
 };

@@ -41,7 +41,7 @@ const BG_NAMES = Object.keys(BG_CODES);
 const ATTR_CODES = { bold: '1', underline: '4' };
 
 /** Every control character, DEL included — identical to the moderation rule. */
-const CONTROL_CHARS_RE = /[\x00-\x1f\x7f]/;
+const CONTROL_CHARS_RE = /[\x00-\x1f\x7f-\x9f]/;
 
 /** Art is bounded so an ad can never take the screen. See render.js for the
  *  matching client-side ceiling; these are the contract, that is the backstop. */
@@ -380,7 +380,11 @@ function renderLine(line, maxWidth = MAX_LINE_WIDTH) {
   return out;
 }
 
+/** Closed set of playable game ids a sponsored ascii_panel may skin (render.game). */
+const GAME_IDS = ['runner', 'termo'];
+
 module.exports = {
+  GAME_IDS,
   FG_CODES, BG_CODES, FG_NAMES, BG_NAMES, ATTR_CODES,
   MAX_ART_LINES, MAX_SPANS_PER_LINE, MAX_LINE_WIDTH, MAX_SPAN_TEXT,
   MAX_FRAMES, MIN_HOLD_MS, MAX_HOLD_MS, DEFAULT_HOLD_MS, TRANSITIONS,
