@@ -14,7 +14,9 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const vendored = require('../src/creative');
-const canonical = require(path.join(__dirname, '..', '..', '..', 'packages', 'creative'));
+const canonicalPath = path.join(__dirname, '..', '..', '..', 'packages', 'creative');
+const inMonorepo = fs.existsSync(path.join(canonicalPath, 'package.json'));
+const canonical = inMonorepo ? require(canonicalPath) : null;
 
 /** Everything after the leading doc comment. The two files deliberately carry
  *  different headers — one says "this is the contract", the other says "this is
@@ -25,7 +27,7 @@ function body(file) {
   return m ? source.slice(m[0].length) : source;
 }
 
-test('vendored creative module body is identical to packages/creative', () => {
+test('vendored creative module body is identical to packages/creative', { skip: inMonorepo ? false : 'packages/creative is not in the public mirror' }, () => {
   const vendoredFile = path.join(__dirname, '..', 'src', 'creative', 'index.js');
   const canonicalFile = path.join(__dirname, '..', '..', '..', 'packages', 'creative', 'index.js');
   assert.equal(
@@ -35,7 +37,7 @@ test('vendored creative module body is identical to packages/creative', () => {
   );
 });
 
-test('vendored creative constants match packages/creative exactly', () => {
+test('vendored creative constants match packages/creative exactly', { skip: inMonorepo ? false : 'packages/creative is not in the public mirror' }, () => {
   assert.deepEqual(vendored.FG_CODES, canonical.FG_CODES);
   assert.deepEqual(vendored.BG_CODES, canonical.BG_CODES);
   assert.deepEqual(vendored.ATTR_CODES, canonical.ATTR_CODES);
@@ -44,7 +46,7 @@ test('vendored creative constants match packages/creative exactly', () => {
   assert.equal(vendored.MAX_SPANS_PER_LINE, canonical.MAX_SPANS_PER_LINE);
 });
 
-test('vendored validateArt behaves identically on the same inputs', () => {
+test('vendored validateArt behaves identically on the same inputs', { skip: inMonorepo ? false : 'packages/creative is not in the public mirror' }, () => {
   const cases = [
     { art_lines: [[{ t: 'ok', fg: 'bright_cyan', bold: true }]] },
     { art_lines: [[{ t: '\x1b[2J', fg: 'red' }]] },

@@ -57,11 +57,19 @@ offline — no network, nothing saved. After install, `meshad demo` does the sam
 
 Alternatively: `curl -fsSL https://meshad.io/install | sh`.
 
-The CLI is published as [`@meshad/cli`](https://www.npmjs.com/package/@meshad/cli)
-0.2.0. Source lives in [`cli/`](cli) — mirrored here from the private core
-repository so it can also be installed standalone, without access to the core
-platform's source. See [`cli/README.md`](cli/README.md) for the full command
-reference and the privacy contract in detail.
+The npm package [`@meshad/cli`](https://www.npmjs.com/package/@meshad/cli)
+and `curl -fsSL https://meshad.io/install | sh` still serve **0.2.0**. This
+repository's [`cli/`](cli) is **0.3.0**, mirrored from the private core, and
+adds `meshad play` (Wait Runner and Termo Dev) for the wait while an agent
+thinks. Until 0.3.0 is published, install play from this repo:
+
+```bash
+git clone https://github.com/DiegoLial/meshad.git && npm install -g ./meshad/cli
+meshad play runner
+```
+
+See [`cli/README.md`](cli/README.md) for the full command reference and the
+privacy contract in detail.
 
 ## Embed the SDK
 

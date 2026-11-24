@@ -15,10 +15,22 @@ node bin/meshad.js earnings      # seus ganhos, direto do ledger
 npm test                           # testes (FSM, telemetria, cache, render, schema-sync, e2e)
 ```
 
+## Jogar enquanto o agente pensa (`meshad play`)
+
+```bash
+meshad play runner     # Wait Runner: 1 tecla (Espaço) pula, sessões curtas, P pausa
+meshad play termo      # Termo Dev: a palavra dev do dia (5 letras, 6 tentativas)
+meshad run --play -- claude   # dentro do tmux: abre o jogo num split quando a espera passa do min_wait
+```
+
+`play` é um processo separado, com TTY próprio (tela alternativa): ele nunca lê nem repassa o stdin do agente. A única ponte com `meshad run --play` é o arquivo `play-state.json` no diretório de config (`{"state":"waiting"|"idle","ts":…}`, escrita atômica) — o jogo congela quando o agente está respondendo e retoma quando volta a pensar; Espaço continua jogando (free-play). Sem `run --play`, `meshad play` é free-play puro: nenhuma telemetria, nenhuma impressão, nenhuma rede. Mesma data UTC + mesmo jogo = mesma semente (mesma palavra, mesmos obstáculos); ao fim sai uma string para copiar, sem link.
+
+Patrocínio: um anúncio `ascii_panel` pode trazer `render.game` (`runner` | `termo`) dentro da assinatura Ed25519. O `play` reverifica a assinatura com a chave pública local antes de desenhar a skin; se falhar, joga sem skin. Fora do tmux, `run --play` só escreve o estado e avisa para abrir `meshad play` em outro painel (nenhuma impressão é contada).
+
 ## Instalar como usuário final (fora do monorepo)
 
 ```bash
-npm install -g @meshad/cli   # pacote publicado no npm (0.2.0)
+npm install -g @meshad/cli   # registry still has 0.2.0; this tree is 0.3.0 (meshad play). Until 0.3.0 is published, install from this repo: npm install -g .
 meshad demo                  # anúncios fictícios, offline, sem conta
 meshad init
 ```

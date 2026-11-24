@@ -64,8 +64,10 @@ class IdleStateMachine {
   /**
    * Output resumed / process exited. Absolute priority: valid from any state.
    * Returns actions in execution order — 'clear' always first.
+   * `visibleMs` (optional) replaces the time since display start as the
+   * displayed duration: the caller measured how long the ad was really visible.
    */
-  idleEnd(now) {
+  idleEnd(now, visibleMs) {
     const actions = [];
     if (this.state === 'idle') return actions;
 
@@ -73,7 +75,7 @@ class IdleStateMachine {
 
     if (this.state === 'displaying') {
       actions.push({ type: 'clear' });
-      const displayedMs = Math.max(0, now - this.displayStartAt);
+      const displayedMs = Number.isFinite(visibleMs) ? Math.max(0, visibleMs) : Math.max(0, now - this.displayStartAt);
       if (displayedMs >= MIN_DISPLAY_FOR_IMPRESSION_MS) {
         this.history.push(now);
         this._prune(now);
