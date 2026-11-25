@@ -24,6 +24,7 @@ const { writeFileAtomic } = require('./config');
 
 const FILE = 'interests.json';
 const NEWS_CACHE_FILE = 'news-cache.json';
+const NEWS_READ_FILE = 'news-read.json'; // local read marks; see news-read.js
 
 // Closed taxonomy — must stay identical to INTEREST_TAXONOMY in apps/api/src/news.js.
 const TAXONOMY = Object.freeze([
@@ -58,10 +59,12 @@ function saveInterests(dir, state) {
   writeFileAtomic(dir, FILE, JSON.stringify(normalize(state), null, 2) + '\n');
 }
 
-/** Wipe everything (topics, consent, enabled flag) and drop the news cache. */
+/** Wipe everything (topics, consent, enabled flag) and drop the news cache and read marks. */
 function clearInterests(dir) {
   saveInterests(dir, defaultState());
-  try { fs.unlinkSync(path.join(dir, NEWS_CACHE_FILE)); } catch { /* absent */ }
+  for (const f of [NEWS_CACHE_FILE, NEWS_READ_FILE]) {
+    try { fs.unlinkSync(path.join(dir, f)); } catch { /* absent */ }
+  }
 }
 
 /** News shows only with consent AND at least one topic AND (enabled OR --news). */
@@ -85,6 +88,6 @@ function removeTopics(state, topics) {
 }
 
 module.exports = {
-  FILE, NEWS_CACHE_FILE, TAXONOMY, defaultState, loadInterests, saveInterests, clearInterests,
+  FILE, NEWS_CACHE_FILE, NEWS_READ_FILE, TAXONOMY, defaultState, loadInterests, saveInterests, clearInterests,
   isNewsActive, addTopics, removeTopics, validateTopics,
 };

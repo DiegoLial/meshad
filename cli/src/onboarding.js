@@ -12,11 +12,11 @@
 const config = require('./config');
 const i18n = require('./i18n');
 const interests = require('./interests');
-const { selectPrompt, multiSelectPrompt } = require('./menu');
+const { selectPrompt, topicSelectorPrompt } = require('./menu');
 const { consentText } = require('./commands/interests');
 const { c } = require('./util');
 
-/** Consent (if not yet given) → topic picker → persist. Returns the saved interests state. */
+/** Consent (if not yet given) → searchable topic picker → persist. Returns the saved interests state. */
 async function setupNews({ dir, stdin, stdout }) {
   const { t } = i18n;
   const out = stdout || process.stdout;
@@ -37,9 +37,10 @@ async function setupNews({ dir, stdin, stdout }) {
     state = { ...state, consented_at: new Date().toISOString() };
   }
 
-  const picked = await multiSelectPrompt({
+  const picked = await topicSelectorPrompt({
     title: t('onb.topics.title'),
     subtitle: t('onb.topics.subtitle'),
+    status: t(state.enabled ? 'menu.val.on' : 'menu.val.off'),
     options: interests.TAXONOMY.map((value) => ({ value, label: value })),
     selected: state.topics,
     stdin,

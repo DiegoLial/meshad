@@ -258,7 +258,9 @@ function chessView(game, { style, rows, pulse, t = (k) => k }) {
   const files = [...FILES].map((f) => ` ${f} `);
   out.push(style.paint(`  ${(flip ? files.reverse() : files).join('')}`, { fg: pulse.accent }));
   if (!game.over) {
-    out.push(`${style.paint(' move ›', { fg: 'mute' })} ${style.paint(game.buffer, { fg: 'ink', bold: true })}${style.paint(style.on ? '▌' : '_', { fg: pulse.accent })}`);
+    // Clean prompt: no block/I-beam glyph (the real cursor is hidden for the whole game). An empty line shows a dim example instead.
+    const typed = game.buffer ? style.paint(game.buffer, { fg: 'ink', bold: true }) : style.paint(style.on ? 'e2e4' : '(e2e4)', { fg: 'line' });
+    out.push(`${style.paint(' ›', { fg: pulse.accent, bold: true })} ${typed}`);
   }
   return out;
 }

@@ -35,6 +35,11 @@
       "pattern": "^ad_[A-Za-z0-9]{8,32}$",
       "description": "Only present on impression and click events."
     },
+    "surface": {
+      "type": "string",
+      "enum": ["footer", "game"],
+      "description": "Only present on impression and click events: where the ad was shown."
+    },
     "sdk_version": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"

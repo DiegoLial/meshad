@@ -12,7 +12,7 @@
  *   statusBar(...)           the bottom row: game · score · best · streak · agent state + thinking meter
  */
 
-const { displayWidth, truncateToWidth } = require('../creative');
+const { displayWidth, truncateToWidth, brandFallbacks } = require('../creative');
 
 const ESC = '\x1b';
 const RESET = `${ESC}[0m`;
@@ -105,6 +105,16 @@ function to256(rgb) {
 
 /** SGR parameter string for a colour at a depth ('' when unrepresentable). kind: 'fg' | 'bg'. */
 function colorCode(depth, kind, color) {
+  if (color && typeof color === 'object' && !Array.isArray(color) && color.brand) {
+    // A verified advertiser brand colour ({ brand: '#rrggbb' }, see skinAccent): same
+    // degradation as the footer renderer — 24-bit, nearest xterm-256 index, nearest basic name.
+    const rgb = rgbOf(color.brand);
+    if (!rgb || depth === 'none') return '';
+    const fb = brandFallbacks(color.brand);
+    if (depth === 'truecolor') return `${kind === 'fg' ? 38 : 48};2;${rgb[0]};${rgb[1]};${rgb[2]}`;
+    if (depth === '256') return `${kind === 'fg' ? 38 : 48};5;${fb.ansi256}`;
+    return String((kind === 'fg' ? 30 : 40) + ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan'].indexOf(fb.ansi16));
+  }
   const rgb = rgbOf(color);
   if (!rgb || depth === 'none') return '';
   if (depth === 'truecolor') return `${kind === 'fg' ? 38 : 48};2;${rgb[0]};${rgb[1]};${rgb[2]}`;
@@ -323,7 +333,40 @@ function statusBar({ style, cols, game, score, best, streak, state, stateLabel, 
   return `${out}${style.paint(' '.repeat(Math.max(0, width - total())), { bg })}`;
 }
 
+// ── terminal safety ─────────────────────────────────────────────────────────
+
+const HIDE_CURSOR = `${ESC}[?25l`;
+const SHOW_CURSOR = `${ESC}[?25h`;
+const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 };
+
+/**
+ * Make sure the terminal is given back however the process ends: on `exit`, on
+ * SIGINT / SIGTERM / SIGHUP and on an uncaught error. `restore` must be idempotent
+ * (show the cursor, leave the alternate screen, drop raw mode). With `onSignal`
+ * a signal asks the owner to close gracefully (it resolves its own promise);
+ * without it the process restores and exits 128+n. Returns `release()`.
+ * @param {{restore:Function, onSignal?:(name:string)=>void}} o
+ */
+function guardTerminal({ restore, onSignal = null }) {
+  const handlers = [];
+  const on = (ev, fn) => { process.on(ev, fn); handlers.push([ev, fn]); };
+  on('exit', restore);
+  for (const [name, num] of Object.entries(SIGNALS)) {
+    on(name, () => {
+      if (onSignal) onSignal(name);
+      else { restore(); process.exit(128 + num); }
+    });
+  }
+  on('uncaughtException', (err) => {
+    try { restore(); } catch { /* nothing left to do */ }
+    process.stderr.write(`${(err && err.stack) || err}\n`);
+    process.exit(1);
+  });
+  return () => { for (const [ev, fn] of handlers) process.off(ev, fn); };
+}
+
 module.exports = {
+  HIDE_CURSOR, SHOW_CURSOR, guardTerminal,
   PALETTE, HEAT_FULL_MS, detectDepth, makeStyle, autoStyle, rgbOf, mix, heatColor, colorCode,
   Framebuffer, diffRows, rowsPatch, pulseFor, meter, statusBar, RESET,
 };

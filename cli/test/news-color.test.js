@@ -102,7 +102,7 @@ test('news view: coloured list with badge/chip/time/title/link rows; empty and o
   assert.match(text, /METRÓPOLES brasil 12m ago/);
   assert.match(text, /Mbappé presenteia Vini Jr\./);
   assert.match(text, /https:\/\/www\.metropoles\.com\/esportes\/mbappe/);
-  assert.match(text, /↑\/↓ scroll · Esc back 1-4 of 9/);
+  assert.match(text, /↑\/↓ j\/k move · Enter open · m read · Esc back 1-4 of 9/);
   assert.doesNotMatch(text, /sponsored/i);
   for (const l of view.lines) assert.ok(displayWidth(l.replace(/\x1b\[[0-9;]*m/g, '')) <= 99);
   const scrolled = flat(renderNews({ items, cols: 100, rows: 24, style, now: NOW, offset: 99 }).lines.join('\n'));

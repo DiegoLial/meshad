@@ -27,7 +27,7 @@ const COMMANDS = {
   demo: { mod: 'demo', desc: 'Simulate an AI agent thinking and exercise the full ad flow' },
   run: { mod: 'run', desc: 'Wrap a command: meshad run [--play] [--news] -- <cmd> (idle = output silence > 1.5s)' },
   menu: { mod: 'menu', desc: 'Interactive menu: play a game, settings, status (also: bare `meshad` in a terminal)' },
-  play: { mod: 'play', desc: 'Play a tiny game while your agent thinks: meshad play [runner|termo]' },
+  play: { mod: 'play', desc: 'Play a tiny game while your agent thinks: meshad play [runner|termo|snake|flappy|blocks|slide|chess]' },
   interests: { mod: 'interests', desc: 'Optional local-only dev/AI headlines while you wait: meshad interests add <topic...>' },
   uninstall: { mod: 'uninstall', desc: 'Remove all local MeshAd data' },
   update: { mod: 'update', desc: 'Update the CLI to the latest published version' },

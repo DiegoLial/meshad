@@ -12,8 +12,8 @@
  */
 
 const {
-  FG_CODES, MAX_ART_LINES, displayWidth, truncateToWidth, renderLine,
-  validateFrames, sliceSpans, DEFAULT_HOLD_MS,
+  FG_CODES, BG_CODES, ATTR_CODES, CONTROL_CHARS_RE, MAX_ART_LINES, displayWidth, truncateToWidth, renderLine,
+  validateFrames, sliceSpans, DEFAULT_HOLD_MS, parseRenderColors, brandFallbacks,
 } = require('./creative');
 
 const ESC = '\x1b';
@@ -39,6 +39,68 @@ const MIN_ROWS_ART = 12;
 
 function colorCode(color) {
   return COLOR_CODES[color] || COLOR_CODES.dim;
+}
+
+/** Colour depth of this terminal: 'none' (NO_COLOR) | 'truecolor' | '256' | '16'. */
+function brandDepth(env) {
+  if (env.NO_COLOR !== undefined) return 'none'; // any value, per no-color.org
+  const ct = String(env.COLORTERM || '').toLowerCase();
+  if (ct === 'truecolor' || ct === '24bit') return 'truecolor';
+  if (/256color/i.test(String(env.TERM || ''))) return '256';
+  return '16';
+}
+
+/**
+ * The SGR opener that styles an ad's chrome and text. A valid `render.colors`
+ * brand colour wins (24-bit, nearest xterm-256 index, or nearest basic name by
+ * depth; none under NO_COLOR); anything else — unknown `v`, bad hex, absent —
+ * falls back to the closed `render.color` name. Every byte is synthesized here
+ * from parsed integers: nothing from the advertiser is ever copied through.
+ */
+function openFor(render, env = process.env) {
+  const brand = parseRenderColors(render && render.colors);
+  if (!brand) return `\x1b[${colorCode(render && render.color)}m`;
+  const depth = brandDepth(env || {});
+  if (depth === 'none') return '';
+  if (depth === 'truecolor') {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(brand.brand.slice(i, i + 2), 16));
+    return `\x1b[38;2;${r};${g};${b}m`;
+  }
+  const fb = brandFallbacks(brand.brand);
+  return depth === '256' ? `\x1b[38;5;${fb.ansi256}m` : `\x1b[${colorCode(fb.ansi16)}m`;
+}
+
+/**
+ * One art line, drawn like `renderLine` — except that a valid brand colour
+ * paints the text too, so the art matches the chrome (otherwise: purple bar,
+ * cyan text). The span's own fg and bg are replaced by the brand opener (and
+ * dropped under NO_COLOR); bold/underline stay. Without a valid brand it is
+ * exactly `renderLine`. The opener comes from `openFor`, so no advertiser byte
+ * is ever copied through.
+ */
+function artLineRenderer(render, env = process.env) {
+  if (!parseRenderColors(render && render.colors)) return renderLine;
+  const open = openFor(render, env);
+  const brandParams = open ? open.slice(2, -1) : '';
+  return (line, maxWidth) => {
+    if (!Array.isArray(line)) return '';
+    let out = '';
+    let width = 0;
+    for (const span of line) {
+      if (!span || typeof span.t !== 'string' || CONTROL_CHARS_RE.test(span.t)) continue;
+      const remaining = maxWidth - width;
+      if (remaining <= 0) break;
+      const text = truncateToWidth(span.t, remaining);
+      if (text.length === 0) continue;
+      const codes = [];
+      if (span.bold) codes.push(ATTR_CODES.bold);
+      if (span.underline) codes.push(ATTR_CODES.underline);
+      if (brandParams) codes.push(brandParams);
+      out += codes.length ? `${ESC}[${codes.join(';')}m${text}${ESC}[0m` : text;
+      width += displayWidth(text);
+    }
+    return out;
+  };
 }
 
 /** Strip control/newline characters and clamp width — never trust ad content blindly. */
@@ -210,18 +272,19 @@ function firstArt(render) {
   return [];
 }
 
-function formatAd(ad, cols = 80, rows = 24) {
+function formatAd(ad, cols = 80, rows = 24, env = process.env) {
   const r = (ad && ad.render) || {};
-  const code = colorCode(r.color);
+  const code = openFor(r, env);
   const emojiPrefix = r.emoji ? `${r.emoji} ` : '';
   const suffix = `${r.cta || ''} · sponsored · (meshad pause)`;
   const maxWidth = Math.max(20, cols - 1);
   const contentLines = (Array.isArray(r.lines) && r.lines.length ? r.lines : [r.text || '']).slice(0, 3);
-  const wrap = (s) => `\x1b[${code}m${s}`;
+  const wrap = (s) => `${code}${s}`;
 
   const format = ad && ad.format;
 
   if (format === 'ascii_panel') {
+    const paint = artLineRenderer(r, env);
     const art0 = firstArt(r);
     // Degrade to a single text line on a terminal too small for the art to read.
     if (cols >= MIN_COLS_ART && rows >= MIN_ROWS_ART && art0.length) {
@@ -233,7 +296,7 @@ function formatAd(ad, cols = 80, rows = 24) {
       );
       const art = art0
         .slice(0, MAX_ART_LINES)
-        .map((line) => renderLine(line, artInner));
+        .map((line) => paint(line, artInner));
       return framePanel([...art, wrap(sanitizeLine(suffix, artInner))], artInner, code);
     }
     // Flattening keeps only word-bearing spans: bar/box glyphs (▇░█─╱╲…) are
@@ -296,8 +359,8 @@ function formatAd(ad, cols = 80, rows = 24) {
  *
  * @returns {string[][]} one entry per frame; a single entry means "do not animate".
  */
-function revealFrames(ad, cols = 80, rows = 24, steps = REVEAL_STEPS) {
-  const final = formatAd(ad, cols, rows);
+function revealFrames(ad, cols = 80, rows = 24, steps = REVEAL_STEPS, env = process.env) {
+  const final = formatAd(ad, cols, rows, env);
   const r = (ad && ad.render) || {};
 
   // Only ascii_panel animates, and only when it rendered as art (not degraded
@@ -317,17 +380,17 @@ function revealFrames(ad, cols = 80, rows = 24, steps = REVEAL_STEPS) {
   // The panel is at its full size from the very first frame — only the art
   // inside grows. Same width formula as formatAd, so the reveal's final frame
   // can be the static render itself, byte for byte.
-  const code = colorCode(r.color);
+  const code = openFor(r, env);
   const suffixPlain = `${r.cta || ''} · sponsored · (meshad pause)`;
   const innerWidth = Math.min(maxWidth - 4, Math.max(20, widest, displayWidth(suffixPlain)));
-  const suffixRow = `\x1b[${code}m${sanitizeLine(suffixPlain, innerWidth)}`;
+  const suffixRow = `${code}${sanitizeLine(suffixPlain, innerWidth)}`;
   const target = Math.min(widest, innerWidth);
   const frameCount = Math.max(1, Math.min(steps, target));
 
   const frames = [];
   for (let i = 1; i < frameCount; i++) {
     const width = Math.ceil((target * i) / frameCount);
-    frames.push(drawFrame(artSpans.map((line) => sliceSpans(line, 0, width)), suffixRow, innerWidth, code));
+    frames.push(drawFrame(artSpans.map((line) => sliceSpans(line, 0, width)), suffixRow, innerWidth, code, artLineRenderer(r, env)));
   }
   frames.push(final);
   return frames;
@@ -354,7 +417,7 @@ function visibleWidth(s) {
  * clearly bounded object on screen, never as loose terminal output.
  */
 function framePanel(rows, innerWidth, code) {
-  const b = (s) => `\x1b[${code}m${s}\x1b[0m`;
+  const b = (s) => (code ? `${code}${s}\x1b[0m` : s);
   const top = b(`╭${'─'.repeat(innerWidth + 2)}╮`);
   const bottom = b(`╰${'─'.repeat(innerWidth + 2)}╯`);
   const body = rows.map((row) => {
@@ -364,8 +427,8 @@ function framePanel(rows, innerWidth, code) {
   return [top, ...body, bottom];
 }
 
-function drawFrame(artSpans, suffixRow, innerWidth, code) {
-  return framePanel([...artSpans.map((line) => renderLine(line, innerWidth)), suffixRow], innerWidth, code);
+function drawFrame(artSpans, suffixRow, innerWidth, code, paint = renderLine) {
+  return framePanel([...artSpans.map((line) => paint(line, innerWidth)), suffixRow], innerWidth, code);
 }
 
 /**
@@ -381,9 +444,9 @@ function drawFrame(artSpans, suffixRow, innerWidth, code) {
  *
  * @returns {{ steps: Array<{lines: string[], ms: number}>, loop: boolean }}
  */
-function buildTimeline(ad, cols = 80, rows = 24) {
+function buildTimeline(ad, cols = 80, rows = 24, env = process.env) {
   const r = (ad && ad.render) || {};
-  const staticLines = formatAd(ad, cols, rows);
+  const staticLines = formatAd(ad, cols, rows, env);
 
   const isArt = ad && ad.format === 'ascii_panel' && staticLines.length > 1;
   if (!isArt) return { steps: [{ lines: staticLines, ms: 0 }], loop: false };
@@ -401,13 +464,14 @@ function buildTimeline(ad, cols = 80, rows = 24) {
 
   // The panel width is fixed across every step of every frame — a border that
   // resizes mid-typewriter reads as glitching, not animating.
-  const code = colorCode(r.color);
+  const code = openFor(r, env);
   const suffixPlain = `${r.cta || ''} · sponsored · (meshad pause)`;
   const innerWidth = Math.min(
     maxWidth - 4,
     Math.max(20, ...frames.map((f) => widthOf(f.art_lines.slice(0, MAX_ART_LINES))), displayWidth(suffixPlain)),
   );
-  const suffixRow = `\x1b[${code}m${sanitizeLine(suffixPlain, innerWidth)}`;
+  const suffixRow = `${code}${sanitizeLine(suffixPlain, innerWidth)}`;
+  const paint = artLineRenderer(r, env);
 
   const steps = [];
 
@@ -428,16 +492,16 @@ function buildTimeline(ad, cols = 80, rows = 24) {
           const gap = Math.max(0, edge - incoming.reduce((w, sp) => w + displayWidth(sp.t), 0));
           return [...incoming, ...(gap ? [{ t: ' '.repeat(gap) }] : []), ...outgoing];
         });
-        steps.push({ lines: drawFrame(composited, suffixRow, innerWidth, code), ms: WIPE_STEP_MS });
+        steps.push({ lines: drawFrame(composited, suffixRow, innerWidth, code, paint), ms: WIPE_STEP_MS });
       }
     } else if (transition === 'typewriter' && target > 0) {
       const width = Math.min(widthOf(art), maxWidth);
       for (let w = 1; w <= width; w++) {
-        steps.push({ lines: drawFrame(art.map((l) => sliceSpans(l, 0, w)), suffixRow, innerWidth, code), ms: TYPE_STEP_MS });
+        steps.push({ lines: drawFrame(art.map((l) => sliceSpans(l, 0, w)), suffixRow, innerWidth, code, paint), ms: TYPE_STEP_MS });
       }
     }
 
-    steps.push({ lines: drawFrame(art, suffixRow, innerWidth, code), ms: frame.hold_ms || DEFAULT_HOLD_MS });
+    steps.push({ lines: drawFrame(art, suffixRow, innerWidth, code, paint), ms: frame.hold_ms || DEFAULT_HOLD_MS });
   });
 
   return { steps, loop };
@@ -500,7 +564,7 @@ class Animator {
 }
 
 module.exports = {
-  LineRenderer, formatAd, revealFrames, buildTimeline, Animator, colorCode, COLOR_CODES, FG_CODES,
+  LineRenderer, formatAd, revealFrames, buildTimeline, Animator, colorCode, openFor, COLOR_CODES, FG_CODES,
   REVEAL_STEPS, REVEAL_FRAME_MS, sanitizeLine, sanitizeAnsiLine,
   MAX_ROWS_TEXT, MAX_ROWS_ART, MIN_COLS_ART, MIN_ROWS_ART,
 };

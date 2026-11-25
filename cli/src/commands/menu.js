@@ -89,6 +89,45 @@ async function settingsMenu(io) {
   }
 }
 
+/** Interests home: pick topics, switch headlines on/off, or wipe everything (with a confirmation). */
+async function interestsMenu(io) {
+  const { t } = i18n;
+  const dir = config.configDir();
+  let last = 0;
+  for (;;) {
+    const state = interests.loadInterests(dir);
+    const on = interests.isNewsActive(state);
+    const pick = await selectPrompt({
+      title: t('menu.int.title'),
+      subtitle: t('menu.int.subtitle', { n: state.topics.length, status: on ? t('menu.val.on') : t('menu.val.off') }),
+      initialIndex: last,
+      options: [
+        { value: 'edit', label: t('menu.int.edit'), hint: state.topics.length ? t('menu.int.count', { n: state.topics.length }) : t('menu.val.notSet') },
+        { value: 'toggle', label: on || state.enabled ? t('menu.int.turnOff') : t('menu.int.turnOn'), hint: on ? t('menu.val.on') : t('menu.val.off') },
+        { value: 'clear', label: t('menu.int.clear'), hint: t('menu.int.clear.hint'), disabled: !state.consented_at && state.topics.length === 0 },
+        { value: 'back', label: t('menu.back') },
+      ],
+      ...io,
+    });
+    if (pick === null || pick === 'back') return;
+    last = ['edit', 'toggle', 'clear'].indexOf(pick);
+
+    if (pick === 'edit') await setupNews({ dir, ...io });
+    else if (pick === 'toggle') {
+      if (state.enabled) interests.saveInterests(dir, { ...state, enabled: false });
+      else if (state.consented_at && state.topics.length > 0) interests.saveInterests(dir, { ...state, enabled: true });
+      else await setupNews({ dir, ...io }); // needs consent and/or topics first
+    } else if (pick === 'clear') {
+      const sure = await selectPrompt({
+        title: t('menu.int.clear.confirm'),
+        options: [{ value: 'no', label: t('menu.int.clear.no') }, { value: 'yes', label: t('menu.int.clear.yes') }],
+        ...io,
+      });
+      if (sure === 'yes') interests.clearInterests(dir);
+    }
+  }
+}
+
 module.exports = async function menuCmd() {
   const io = { stdin: process.stdin, stdout: process.stdout };
   if (!io.stdin.isTTY || !io.stdout.isTTY) {
@@ -109,6 +148,7 @@ module.exports = async function menuCmd() {
       options: [
         { value: 'play', label: t('menu.play'), hint: t('menu.play.hint') },
         { value: 'news', label: t('menu.news'), hint: t('menu.news.hint') },
+        { value: 'interests', label: t('menu.interests'), hint: t('menu.interests.hint') },
         { value: 'settings', label: t('menu.settings'), hint: t('menu.settings.hint') },
         { value: 'status', label: t('menu.status'), hint: t('menu.status.hint') },
         { value: 'quit', label: t('menu.quit') },
@@ -116,11 +156,14 @@ module.exports = async function menuCmd() {
       ...io,
     });
     if (pick === null || pick === 'quit') return 0;
-    last = ['play', 'news', 'settings', 'status'].indexOf(pick);
+    last = ['play', 'news', 'interests', 'settings', 'status'].indexOf(pick);
 
     if (pick === 'play') await require('./play')('play', []);
     else if (pick === 'news') await require('../news-view').showNews({ fetch: true, ...io });
+    else if (pick === 'interests') await interestsMenu(io);
     else if (pick === 'settings') await settingsMenu(io);
     else if (pick === 'status') await require('./status')('status', []);
   }
 };
+
+module.exports.interestsMenu = interestsMenu;

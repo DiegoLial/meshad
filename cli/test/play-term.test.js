@@ -151,9 +151,10 @@ test('streaks are local only: nothing in play/ that writes them can reach the ne
 test('freeze card: big "answer ready" card with score, best and the two keys, centred, in en and pt-BR', () => {
   const plain = cards.freezeCard({ style: term.makeStyle('none'), cols: 80, rows: 16, game: 'Wait Runner', score: '120m', best: 340, streak: 3, t: T });
   const text = plain.join('\n');
-  assert.match(text.replace(/\s+/g, ''), /YOURANSWERISREADY/, 'letter-spaced title');
+  assert.match(text, /✓ {2}YOUR ANSWER IS READY/, 'plain title, no letter-spacing');
   assert.match(text, /score 120m · best 340/);
-  assert.match(text, /Space to keep playing · Esc back to agent/);
+  assert.match(text, /Esc \/ Enter \/ Q {2}back to your agent/);
+  assert.match(text, /Space {2}keep playing \(free-play\)/);
   assert.match(text, /3-day streak/);
   assert.ok(plain.length <= 16);
   for (const l of plain) assert.ok(displayWidth(l) <= 79, `fits: ${displayWidth(l)}`);
@@ -163,7 +164,8 @@ test('freeze card: big "answer ready" card with score, best and the two keys, ce
   i18n.init({ lang: 'pt-BR' });
   try {
     const pt = cards.freezeCard({ style: term.makeStyle('none'), cols: 100, rows: 16, game: 'Wait Runner', score: '9m', best: 9, t: T }).join('\n');
-    assert.match(pt, /Espaço para continuar jogando · Esc volta ao agente/);
+    assert.match(pt, /Esc \/ Enter \/ Q {2}voltar ao agente/);
+    assert.match(pt, /Espaço {2}continuar jogando/);
   } finally { i18n.init({ lang: 'en' }); }
 });
 
@@ -255,7 +257,7 @@ test('session: the frozen game shows the "answer ready" card instead of the boar
   bridge.writeState(dir, 'idle', clock.t); s.poll();
   const text = s.render(80, 24).join('\n');
   assert.match(text.replace(/\s+/g, ''), /YOURANSWERISREADY/);
-  assert.match(text, /Space to keep playing · Esc back to agent/);
+  assert.match(text, /Esc \/ Enter \/ Q {2}back to your agent/);
   assert.match(text, /score 20m/);
   assert.doesNotMatch(text, /Space = keep playing anyway/, 'the old one-liner is gone');
   s.key(' '); // keep playing

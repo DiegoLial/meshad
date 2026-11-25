@@ -119,6 +119,11 @@ class NewsCache {
     }
   }
 
+  /** Force a fetch now (the `r` key). Resolves to the fresh items, or null when offline/failed. */
+  async refresh() {
+    try { return await this._refresh(); } catch { return null; }
+  }
+
   _refresh() {
     if (this._inflight) return this._inflight;
     this._inflight = (async () => {

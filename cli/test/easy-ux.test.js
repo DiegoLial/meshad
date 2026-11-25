@@ -539,7 +539,8 @@ test('run: play_mode "yes" (no --play) inside tmux binds prefix+j, auto-opens a 
   assert.equal(impressions.length, 1);
   assert.equal(impressions[0].ad_id, 'ad_gamerunner');
   assert.ok(impressions[0].duration_ms >= 2000, `visible duration ${impressions[0].duration_ms}`);
-  assert.deepEqual(Object.keys(impressions[0]).sort(), ['ad_id', 'anon_id', 'duration_ms', 'event', 'sdk_version', 'terminal_type', 'ts'], 'no new telemetry fields');
+  assert.deepEqual(Object.keys(impressions[0]).sort(), ['ad_id', 'anon_id', 'duration_ms', 'event', 'sdk_version', 'surface', 'terminal_type', 'ts'], 'no new telemetry fields beyond surface');
+  assert.equal(impressions[0].surface, 'game', 'a sponsored split reports surface=game');
   assert.equal(fs.existsSync(path.join(dir, bridge.STATE_FILE)), false, 'state file removed on exit');
 });
 

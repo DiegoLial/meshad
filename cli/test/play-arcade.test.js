@@ -147,12 +147,14 @@ test('snake: two quick turns in one tick both happen (one per tick, in order)', 
   assert.equal(s.g.log()[1][0], s.g.log()[0][0] + 1);
 });
 
-test('flappy: Space / Up flap, the first Space only starts; the key log replays', () => {
+test('flappy: Space / Up / W / K flap, the first flap key only starts; the key log replays', () => {
   const { s } = make('flappy');
+  s.key('left');
+  assert.equal(s.g.started, false, 'a non-flap key does not start');
   s.key('up');
-  assert.equal(s.g.started, false, 'only Space starts');
-  s.key(' ');
-  assert.equal(s.g.started, true);
+  assert.equal(s.g.started, true, 'Up starts, as the controls hint says');
+  assert.equal(s.g.pendingFlap, false, 'the starting key is not also a flap');
+  for (const k of ['w', 'k', ' ']) { const f = make('flappy').s; f.key(k); assert.equal(f.g.started, true, k); }
   const bot = make('flappy').s;
   bot.key(' ');
   while (!bot.g.over) {
@@ -251,7 +253,7 @@ test('chess: typed moves + Enter + Backspace drive the puzzle; the move log repl
   assert.match(s.render(80, 24).join('\n'), /illegal move/);
   keysOf(s, 'e2e4'); s.key('backspace'); s.key('backspace');
   assert.equal(g.buffer, 'e2');
-  assert.match(s.render(80, 24).join('\n'), /move › e2_/);
+  assert.match(s.render(80, 24).join('\n'), /› e2\b/);
   g.buffer = '';
 
   // a legal wrong move costs a life
@@ -296,8 +298,15 @@ test('chess: SAN works in lower case (nf3 → Nf3), x/+/# are not needed, three 
   assert.match(f.shareText, /^Mate Puzzle 2026-11-24 X\n🟥🟥🟥$/);
   keysOf(f, 'e2e4'); f.key('enter');
   assert.equal(f.g.s.log.length, chess.MAX_MISTAKES, 'nothing is accepted after the end');
-  keysOf(f, 'r');
-  assert.equal(f.g.s.over, true, 'R types a letter in chess, it does not restart the puzzle');
+  keysOf(f, 'r'); // after the end R retries the same puzzle, but only as unscored practice
+  assert.equal(f.g.s.over, false, 'R restarts the puzzle once it has ended');
+  assert.equal(f.practice, true);
+  assert.match(f.render(80, 24).join('\n'), /practice — this round is not scored/);
+  const pr = bad.slice(0, chess.MAX_MISTAKES);
+  for (const u of pr) { keysOf(f, u); f.key('enter'); }
+  assert.equal(f.shareText, null, 'practice rounds are never shared');
+  assert.equal(f.result, null, 'practice rounds are never submitted');
+  assert.equal(streak.load(dir).chess.played, 1, 'practice rounds are not recorded');
 });
 
 // ── pause / restart / quit ──────────────────────────────────────────────────
@@ -342,7 +351,8 @@ test('real-time games freeze when the agent answers, resume where they stopped, 
     assert.equal(ticks(5), 5, `${game}: no progress while the agent is answering`);
     const frozen = s.render(80, 26).join('\n');
     assert.match(frozen.replace(/\s+/g, ''), /YOURANSWERISREADY/);
-    assert.match(frozen, /Space to keep playing · Esc back to agent/);
+    assert.match(frozen, /Esc \/ Enter \/ Q {2}back to your agent/);
+    assert.match(frozen, /Space {2}keep playing \(free-play\)/);
     assert.match(frozen, new RegExp(`score ${s.g.score}`));
     s.key('left'); s.key('right');
     assert.equal(s.g.pending ? s.g.pending.length : 0, 0, `${game}: arrows are swallowed while frozen`);

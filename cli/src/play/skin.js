@@ -18,7 +18,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { verifyAd } = require('../signature');
 const { formatAd } = require('../render');
-const { GAME_IDS } = require('../creative');
+const { GAME_IDS, parseRenderColors } = require('../creative');
 
 // Same files adcache.js writes (a test pins the match). Not imported from there:
 // adcache pulls in the network module, and play must stay offline end to end.
@@ -45,9 +45,10 @@ function findSkinAd({ dir, adId, game }) {
 }
 
 /**
- * Palette accent for a verified skin, derived from the ad's own SIGNED `render.color`
- * (a closed set of colour names) — the advertiser never ships a hex value, and the
- * signed canonical schema is unchanged. Unknown or missing → null (default palette).
+ * Palette accent for a verified skin. A valid signed `render.colors` v1 brand colour
+ * wins and is returned as `{ brand: '#rrggbb' }` (term.js maps it to the terminal's
+ * depth; NO_COLOR draws none). Otherwise it is derived from the signed `render.color`
+ * (a closed set of names). Unknown `v`, bad hex, or nothing → null (default palette).
  */
 const ACCENT_BY_COLOR = {
   cyan: 'cyan', bright_cyan: 'cyan', magenta: 'magenta', bright_magenta: 'magenta', green: 'lime', bright_green: 'lime',
@@ -55,6 +56,8 @@ const ACCENT_BY_COLOR = {
 };
 
 function skinAccent(ad) {
+  const brand = parseRenderColors(ad && ad.render && ad.render.colors);
+  if (brand) return { brand: brand.brand };
   const name = ad && ad.render && typeof ad.render.color === 'string' ? ad.render.color : '';
   return Object.prototype.hasOwnProperty.call(ACCENT_BY_COLOR, name) ? ACCENT_BY_COLOR[name] : null;
 }
@@ -65,4 +68,28 @@ function loadSkin({ dir, adId, game, cols = 80, rows = 24 }) {
   return ad ? formatAd(ad, cols, rows) : [];
 }
 
-module.exports = { findSkinAd, loadSkin, skinAccent, CACHE_FILE, PUBKEY_FILE };
+/**
+ * Banner sizes for a verified skin, tallest first, so a game can take the biggest one that
+ * leaves its board whole: the full panel, then 2 rows (first art row + the sponsor row, still
+ * framed at the sides), then the 1-line form. Every variant carries the "sponsored" label —
+ * it is never the part that gets cut. `card` is the one-line sponsor row for the freeze card.
+ * No verified skin → { options: [], card: '' }.
+ */
+function skinVariants({ dir, adId, game, cols = 80, rows = 24 }) {
+  const ad = findSkinAd({ dir, adId, game });
+  return ad ? variantsFor(ad, cols, rows) : { options: [], card: '' };
+}
+
+function variantsFor(ad, cols, rows) {
+  const full = formatAd(ad, cols, rows);
+  if (!full.length) return { options: [], card: '' };
+  const out = [full];
+  if (full.length > 3) out.push([full[1], full[full.length - 2]]); // framed panel: top art row + sponsor row
+  const one = formatAd(ad, cols, 0); // rows < MIN_ROWS_ART → the single flattened line
+  if (one.length === 1 && full.length > 1) out.push(one);
+  // The sponsor line for the freeze card, sized to fit INSIDE the card (its border and padding take 7 columns).
+  const card = formatAd(ad, Math.max(20, cols - 7), 0)[0] || '';
+  return { options: out, card };
+}
+
+module.exports = { findSkinAd, loadSkin, skinVariants, skinAccent, CACHE_FILE, PUBKEY_FILE };

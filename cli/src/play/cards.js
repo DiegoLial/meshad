@@ -8,19 +8,46 @@
 
 const { MAX_TICKS } = require('./runner');
 const { gradientBox } = require('./box');
+const { displayWidth } = require('../creative');
 
-/** The "your answer is ready" card, centred in a `cols` × `rows` area. */
-function freezeCard({ style, cols, rows, game, score, best, streak = 0, t }) {
-  const stats = [t('play.freeze.score', { score, best }), streak > 0 ? t('play.freeze.streak', { n: streak }) : ''].filter(Boolean).join('  ·  ');
-  const title = `✔  ${t('play.freeze.title')}`.split('').join(' ');
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+
+/** The sponsor row as a box line. Too wide for the card: drop its HEAD (content) and keep the tail, where the "sponsored" label is. */
+function sponsorRows(sponsor, cols) {
+  if (!sponsor) return [];
+  const plain = sponsor.replace(ANSI_RE, '');
+  const room = Math.max(8, cols - 7); // box border + padding
+  if (displayWidth(plain) <= room) return [{ text: sponsor, plain }];
+  let tail = plain;
+  while (tail && displayWidth(`…${tail}`) > room) tail = tail.slice(1);
+  return [{ text: `…${tail}`, plain: `…${tail}` }];
+}
+
+/**
+ * The "your answer is ready" card, centred in a `cols` × `rows` area. One key goes back to
+ * the agent (Esc / Enter / Q, handled by PlaySession), Space keeps playing. Plain glyphs only
+ * inside the box (✓, ★ — no emoji, no letter-spacing) so the right border lines up everywhere.
+ * `sponsor` is an optional one-line verified sponsor row (already styled, already carries "sponsored"):
+ * it sits under the title, inside the card, and is kept whole (its tail holds the label) if the card is narrow.
+ */
+function freezeCard({ style, cols, rows, game, score, best, streak = 0, sponsor = '', t }) {
+  const title = `✓  ${t('play.freeze.title')}`;
+  const stats = t('play.freeze.score', { score, best });
+  const streakLine = streak > 0 ? t('play.freeze.streak', { n: streak }) : '';
+  const back = t('play.freeze.back');
+  const cont = t('play.freeze.continue');
+  const row = (text, plain, opts) => ({ text: style.paint(text, opts), plain });
   const inner = [
     { text: '', plain: '' },
     { text: style.gradient(title, 'lime', 'cyan', { bold: true }), plain: title },
+    ...sponsorRows(sponsor, cols), // directly under the title
+    row(game, game, { fg: 'mute' }),
     { text: '', plain: '' },
-    { text: style.paint(game, { fg: 'mute' }), plain: game },
-    { text: style.paint(stats, { fg: 'ink', bold: true }), plain: stats },
+    row(stats, stats, { fg: 'ink', bold: true }),
+    ...(streakLine ? [row(streakLine, streakLine, { fg: 'amber', bold: true })] : []),
     { text: '', plain: '' },
-    { text: style.paint(t('play.freeze.keys'), { fg: 'amber', bold: true }), plain: t('play.freeze.keys') },
+    row(back, back, { fg: 'lime', bold: true }),
+    row(cont, cont, { fg: 'amber' }),
     { text: '', plain: '' },
   ];
   const card = gradientBox({ style, inner, maxWidth: Math.max(20, cols - 2), from: 'lime', to: 'cyan', bg: 'panel' });

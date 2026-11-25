@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Tiny zero-dep TTY widgets: selectPrompt, multiSelectPrompt, textPrompt.
+ * Tiny zero-dep TTY widgets: selectPrompt, multiSelectPrompt, topicSelectorPrompt, textPrompt.
  *
  * Every widget takes injectable `{ stdin, stdout }` (defaults: process.stdin /
  * process.stdout) so tests can drive them with PassThrough streams. Raw mode,
@@ -13,7 +13,7 @@
 const i18n = require('./i18n');
 const { sanitizeAnsiLine } = require('./render');
 const { displayWidth } = require('./creative');
-const { autoStyle } = require('./play/term');
+const { autoStyle, guardTerminal } = require('./play/term');
 
 const HIDE_CURSOR = '\x1b[?25l';
 const SHOW_CURSOR = '\x1b[?25h';
@@ -43,6 +43,8 @@ function parseKeys(chunk) {
       if (s[i] === '\n') i += 1; // CRLF is one Enter
     } else if (ch === '\n') keys.push({ name: 'enter' });
     else if (ch === '\x03') keys.push({ name: 'ctrl-c' });
+    else if (ch === '\x0c') keys.push({ name: 'ctrl-l' });
+    else if (ch === '\x01') keys.push({ name: 'ctrl-a' });
     else if (ch === '\x7f' || ch === '\b') keys.push({ name: 'backspace' });
     else if (ch === ' ') keys.push({ name: 'space', ch });
     else if (ch >= ' ') keys.push({ name: 'char', ch });
@@ -78,16 +80,20 @@ function runSession({ stdin, stdout, env }, { hideCursor, view, onKey }) {
       out.write(`${lines.join('\n')}\n`);
       drawn = lines.length;
     };
-    const onExit = () => out.write(SHOW_CURSOR);
+    // Idempotent: also runs from `exit`, SIGINT/SIGTERM/SIGHUP and an uncaught error, so a killed menu never leaves a hidden cursor or raw mode behind.
+    const restore = () => {
+      if (hideCursor) out.write(SHOW_CURSOR);
+      try { if (canRaw) inp.setRawMode(wasRaw); } catch { /* not a TTY anymore */ }
+    };
+    const release = guardTerminal({ restore, onSignal: () => done(null) });
 
     const cleanup = () => {
       finished = true;
       inp.removeListener('data', onData);
       inp.removeListener('end', onEnd);
-      process.removeListener('exit', onExit);
+      release();
       erase();
-      if (hideCursor) out.write(SHOW_CURSOR);
-      if (canRaw) inp.setRawMode(wasRaw);
+      restore();
       inp.pause();
     };
     const done = (value) => {
@@ -110,10 +116,7 @@ function runSession({ stdin, stdout, env }, { hideCursor, view, onKey }) {
       }
     }
 
-    if (hideCursor) {
-      out.write(HIDE_CURSOR);
-      process.once('exit', onExit);
-    }
+    if (hideCursor) out.write(HIDE_CURSOR);
     if (canRaw) inp.setRawMode(true);
     inp.on('data', onData);
     inp.on('end', onEnd);
@@ -156,15 +159,16 @@ function optionText(st, o, active, mark, width) {
   if (!st.on) return `  ${'❯'} ${mark}${o.label}${o.hint ? `  ${o.hint}` : ''}`;
   const plain = `  ❯ ${mark}${o.label}${o.hint ? `  ${o.hint}` : ''}`;
   const pad = ' '.repeat(Math.max(0, Math.min(width, 64) - displayWidth(plain)));
-  const hintOn = o.hint ? `  ${st.paint(o.hint, { fg: 'sky', bg: 'panel' })}` : '';
+  const hintOn = o.hint ? `${st.paint('  ', { bg: 'panel' })}${st.paint(o.hint, { fg: 'sky', bg: 'panel' })}` : ''; // the two spaces before the hint carry the bar colour too: no black gap
   return `${st.paint('  ❯ ', { fg: 'cyan', bg: 'panel', bold: true })}${st.paint(`${mark}${o.label}`, { fg: 'ink', bg: 'panel', bold: true })}${hintOn}${st.paint(pad, { bg: 'panel' })}`;
 }
 
 /**
  * Single choice: ↑/↓ move (disabled items are skipped), Enter picks, Esc/Ctrl-C cancels.
+ * `preview(option, style)` may return extra lines drawn under the list for the highlighted option.
  * @returns {Promise<any|null>} the option's `value`, or null on cancel
  */
-async function selectPrompt({ title, subtitle, options = [], initialIndex = 0, stdin, stdout, env } = {}) {
+async function selectPrompt({ title, subtitle, options = [], initialIndex = 0, preview = null, footer = null, stdin, stdout, env } = {}) {
   if (!options.some(enabled)) return null;
   let idx = Math.min(Math.max(initialIndex | 0, 0), options.length - 1);
   if (!enabled(options[idx])) idx = nextEnabled(options, idx, 1);
@@ -174,8 +178,9 @@ async function selectPrompt({ title, subtitle, options = [], initialIndex = 0, s
     view: (st) => [
       ...header(st, title, subtitle),
       ...options.map((o, i) => optionText(st, o, i === idx, '', widthOf(stdout))),
+      ...(preview ? ['', ...preview(options[idx], st).map((l) => `  ${l}`)] : []),
       '',
-      `  ${st.paint(i18n.t('ui.hint.select'), { fg: 'mute' })}`,
+      `  ${st.paint(footer || i18n.t('ui.hint.select'), { fg: 'mute' })}`,
     ],
     onKey: (key) => {
       if (key.name === 'up') idx = nextEnabled(options, idx, -1);
@@ -222,6 +227,72 @@ async function multiSelectPrompt({ title, subtitle, options = [], selected = [],
 }
 
 /**
+ * Topic picker with live search (a multiSelectPrompt for long lists you filter by typing).
+ * ↑/↓ move · Space toggle · type (letters, digits, `:`, a leading `/`) to filter · Backspace edits the filter ·
+ * Esc clears the filter first, then cancels · Ctrl+L clears every selection · Ctrl+A selects what is shown · Enter confirms.
+ * Selections survive filtering. `status` is a short line ("news: on") drawn above the list.
+ * @returns {Promise<any[]|null>} chosen values in option order, or null on cancel
+ */
+async function topicSelectorPrompt({ title, subtitle, status = '', options = [], selected = [], stdin, stdout, env } = {}) {
+  if (options.length === 0) return [];
+  const { t } = i18n;
+  const chosen = new Set(selected.filter((v) => options.some((o) => o.value === v && enabled(o))));
+  let query = '';
+  let idx = 0;
+  const shown = () => {
+    const q = query.toLowerCase();
+    return options.filter((o) => enabled(o) && (!q || `${o.value} ${o.label}`.toLowerCase().includes(q)));
+  };
+  const visibleRows = () => Math.max(3, ((stdout || process.stdout).rows || 24) - 11);
+
+  return runSession({ stdin, stdout, env }, {
+    hideCursor: true,
+    view: (st) => {
+      const list = shown();
+      idx = Math.min(idx, Math.max(0, list.length - 1));
+      const max = visibleRows();
+      const start = Math.min(Math.max(0, idx - max + 1), Math.max(0, list.length - max));
+      const rowsShown = list.slice(start, start + max);
+      const body = list.length === 0
+        ? [`    ${st.paint(t('ui.search.none', { q: query }), { fg: 'amber' })}`]
+        : rowsShown.map((o, i) => optionText(st, o, start + i === idx, chosen.has(o.value) ? st.paint('[x] ', { fg: 'lime', bg: start + i === idx ? 'panel' : undefined, bold: true }) : '[ ] ', widthOf(stdout)));
+      const more = list.length > rowsShown.length ? `  ${st.paint(`${start + 1}-${start + rowsShown.length} / ${list.length}`, { fg: 'mute' })}` : '';
+      return [
+        ...header(st, title, subtitle),
+        `  ${st.paint(t('ui.topics.count', { n: chosen.size, total: options.length }), { fg: chosen.size ? 'lime' : 'mute', bold: true })}${status ? `  ${st.paint(status, { fg: 'sky' })}` : ''}${more}`,
+        `  ${st.paint('/', { fg: 'cyan', bold: true })} ${query ? st.paint(query, { fg: 'ink', bold: true }) : st.paint(t('ui.search.hint'), { fg: 'mute' })}`,
+        '',
+        ...body,
+        '',
+        `  ${st.paint(t('ui.hint.topics'), { fg: 'mute' })}`,
+        `  ${st.paint(t('ui.hint.topics2'), { fg: 'mute' })}`,
+      ];
+    },
+    onKey: (key) => {
+      const list = shown();
+      if (key.name === 'up') idx = list.length ? (idx - 1 + list.length) % list.length : 0;
+      else if (key.name === 'down') idx = list.length ? (idx + 1) % list.length : 0;
+      else if (key.name === 'space') {
+        const o = list[idx];
+        if (o) {
+          if (chosen.has(o.value)) chosen.delete(o.value);
+          else chosen.add(o.value);
+        }
+      } else if (key.name === 'ctrl-l') chosen.clear();
+      else if (key.name === 'ctrl-a') for (const o of list) chosen.add(o.value);
+      else if (key.name === 'backspace') { query = Array.from(query).slice(0, -1).join(''); idx = 0; }
+      else if (key.name === 'char') {
+        if (!(query === '' && key.ch === '/') && /^[\p{L}\p{N}:_.\/-]$/u.test(key.ch)) { query += key.ch; idx = 0; }
+      } else if (key.name === 'enter') return { value: options.filter((o) => chosen.has(o.value)).map((o) => o.value) };
+      else if (key.name === 'escape') {
+        if (query) { query = ''; idx = 0; } else return { value: null };
+      } else if (key.name === 'ctrl-c') return { value: null };
+      return undefined;
+    },
+  });
+}
+
+/**
  * Single-line text input. `validate(value)` returns an error string to reject
  * (shown inline, input stays open) or a falsy/true value to accept.
  * @returns {Promise<string|null>} the entered text, or null on cancel
@@ -256,4 +327,4 @@ async function textPrompt({ title, placeholder = '', validate, stdin, stdout, en
   });
 }
 
-module.exports = { selectPrompt, multiSelectPrompt, textPrompt, parseKeys };
+module.exports = { selectPrompt, multiSelectPrompt, topicSelectorPrompt, textPrompt, parseKeys };

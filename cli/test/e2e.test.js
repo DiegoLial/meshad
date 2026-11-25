@@ -74,6 +74,7 @@ test('e2e: demo completes the full flow and the mock receives a plausible impres
   const imp = events.find((e) => e.event === 'impression');
   assert.ok(imp, 'impression sent');
   assert.ok(imp.ad_id.startsWith('ad_mock'), 'impression references a real served ad');
+  assert.equal(imp.surface, 'footer', 'the footer ad reports surface=footer');
   // demo min wait is 3s of a 6s wait → displayed ≈ 3s (2s minimum for billability)
   assert.ok(imp.duration_ms >= 2000 && imp.duration_ms <= 4500, `plausible duration, got ${imp.duration_ms}`);
 
@@ -81,7 +82,7 @@ test('e2e: demo completes the full flow and the mock receives a plausible impres
   assert.ok(idleEnd.duration_ms >= 5500 && idleEnd.duration_ms <= 8000, `full wait duration, got ${idleEnd.duration_ms}`);
 
   // every event carries ONLY contract fields
-  const allowed = ['event', 'ts', 'anon_id', 'terminal_type', 'duration_ms', 'ad_id', 'sdk_version'];
+  const allowed = ['event', 'ts', 'anon_id', 'terminal_type', 'duration_ms', 'ad_id', 'sdk_version', 'surface'];
   for (const e of events) {
     for (const k of Object.keys(e)) assert.ok(allowed.includes(k), `field ${k} is in the allowlist`);
   }

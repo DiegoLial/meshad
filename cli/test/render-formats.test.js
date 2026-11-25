@@ -87,3 +87,84 @@ test('LineRenderer: no-op and false on non-TTY regardless of format', () => {
   assert.equal(r.render(rows), false);
   assert.equal(writes.length, 0);
 });
+
+// ── render.colors v1 (brand colour) ──────────────────────────────────────────
+
+test('colors: brand renders as 24-bit, xterm-256 index, nearest basic name, and nothing under NO_COLOR', () => {
+  const { formatAd } = require('../src/render');
+  const { brandFallbacks } = require('../src/creative');
+  const ad = { format: 'text_line', render: { text: 'Acme', cta: 'acme.dev', color: 'cyan', colors: { v: 1, brand: '#ff8800' } } };
+  const fb = brandFallbacks('#ff8800');
+  const first = (env) => formatAd(ad, 80, 24, env)[0];
+  assert.ok(first({ COLORTERM: 'truecolor' }).startsWith('\x1b[38;2;255;136;0m'));
+  assert.ok(first({ COLORTERM: '24bit' }).startsWith('\x1b[38;2;255;136;0m'));
+  assert.ok(first({ TERM: 'xterm-256color' }).startsWith(`\x1b[38;5;${fb.ansi256}m`));
+  assert.ok(first({ TERM: 'xterm' }).startsWith(`\x1b[${{ red: 31, green: 32, yellow: 33, blue: 34, magenta: 35, cyan: 36 }[fb.ansi16]}m`));
+  const plain = first({ NO_COLOR: '1', COLORTERM: 'truecolor' });
+  assert.ok(!plain.includes('\x1b'), 'NO_COLOR: no escape at all');
+  assert.match(plain, /sponsored/);
+});
+
+test('colors: unknown v, bad hex, extra keys → ignored, render.color is used', () => {
+  const { formatAd } = require('../src/render');
+  const env = { COLORTERM: 'truecolor' };
+  for (const colors of [{ v: 2, brand: '#ff8800' }, { v: 1, brand: '#FF8800' }, { v: 1, brand: 'red' }, { v: 1, brand: '#000000' }, { v: 1, brand: '#ff8800', x: 1 }, 'x', null]) {
+    const ad = { format: 'text_line', render: { text: 'Acme', cta: 'c', color: 'magenta', colors } };
+    assert.ok(formatAd(ad, 80, 24, env)[0].startsWith('\x1b[35m'), JSON.stringify(colors));
+  }
+});
+
+test('colors: only synthesized sequences reach the terminal — a hostile brand never gets through', () => {
+  const { formatAd } = require('../src/render');
+  const ad = { format: 'text_line', render: { text: 'Acme', cta: 'c', color: 'cyan', colors: { v: 1, brand: '#ff8800\x1b]0;pwn\x07' } } };
+  const out = formatAd(ad, 80, 24, { COLORTERM: 'truecolor' })[0];
+  assert.ok(!out.includes('pwn') && !out.includes('\x07'));
+  assert.ok(out.startsWith('\x1b[36m'));
+});
+
+test('colors: ascii_panel frame and sponsor row use the brand colour too', () => {
+  const { formatAd } = require('../src/render');
+  const ad = { format: 'ascii_panel', render: { text: 'A', lines: ['A'], cta: 'a.dev', color: 'cyan', colors: { v: 1, brand: '#ff8800' }, art_lines: [[{ t: ' ACME ' }]] } };
+  const lines = formatAd(ad, 80, 24, { COLORTERM: 'truecolor' });
+  assert.ok(lines.length > 1);
+  assert.ok(lines[0].includes('\x1b[38;2;255;136;0m') && lines[lines.length - 1].includes('\x1b[38;2;255;136;0m'));
+  assert.ok(!formatAd(ad, 80, 24, { NO_COLOR: '' }).join('').includes('38;2;'));
+});
+
+test('colors: the game accent follows the brand at each depth; unknown v keeps the render.color accent', () => {
+  const { skinAccent } = require('../src/play/skin');
+  const term = require('../src/play/term');
+  const { brandFallbacks } = require('../src/creative');
+  const acc = skinAccent({ render: { color: 'green', colors: { v: 1, brand: '#ff8800' } } });
+  assert.deepEqual(acc, { brand: '#ff8800' });
+  assert.equal(term.makeStyle('truecolor').open({ bg: acc }), '\x1b[48;2;255;136;0m');
+  assert.equal(term.makeStyle('256').open({ bg: acc }), `\x1b[48;5;${brandFallbacks('#ff8800').ansi256}m`);
+  assert.match(term.makeStyle('16').open({ bg: acc }), /^\x1b\[4[1-6]m$/);
+  assert.equal(term.makeStyle('none').open({ bg: acc }), '');
+  assert.equal(skinAccent({ render: { color: 'green', colors: { v: 9, brand: '#ff8800' } } }), 'lime');
+});
+
+test('colors: ascii_panel art text takes the brand colour at each depth; NO_COLOR emits no colour; no colors keeps the span fg', () => {
+  const { brandFallbacks } = require('../src/creative');
+  const art = [[{ t: '▌ ', fg: 'cyan' }, { t: 'Acme', fg: 'cyan', bold: true }], [{ t: '▌ ', fg: 'cyan' }, { t: 'ships fast' }]];
+  const mk = (colors) => ({ format: 'ascii_panel', render: { text: 'A', lines: ['A'], cta: 'a.dev', color: 'cyan', ...(colors ? { colors } : {}), art_lines: art } });
+  const body = (ad, env) => formatAd(ad, 80, 24, env).slice(1, 3).join('');
+  const brand = { v: 1, brand: '#ff8800' };
+  const fb = brandFallbacks('#ff8800');
+
+  const tc = body(mk(brand), { COLORTERM: 'truecolor' });
+  assert.ok(tc.includes('\x1b[1;38;2;255;136;0mAcme'), 'bold title painted in the brand');
+  assert.ok(tc.includes('\x1b[38;2;255;136;0mships fast'), 'unstyled line painted too');
+  assert.ok(!tc.includes('36m'), 'palette cyan is gone');
+  assert.ok(body(mk(brand), { TERM: 'xterm-256color' }).includes(`38;5;${fb.ansi256}mships fast`));
+  assert.match(body(mk(brand), { TERM: 'xterm' }), /\x1b\[3[1-6]mships fast/);
+
+  const none = body(mk(brand), { NO_COLOR: '1', COLORTERM: 'truecolor' });
+  assert.ok(!/\x1b\[[0-9;]*(3[0-9]|9[0-9]|4[0-9]|10[0-9])m/.test(none), 'NO_COLOR: no colour SGR');
+  assert.match(none, /ships fast/);
+
+  assert.ok(body(mk(null), { COLORTERM: 'truecolor' }).includes('36mships') === false && body(mk(null), { COLORTERM: 'truecolor' }).includes('\x1b[1;36mAcme'), 'no colors: span fg stays');
+  for (const bad of [{ v: 2, brand: '#ff8800' }, { v: 1, brand: 'red' }]) {
+    assert.ok(body(mk(bad), { COLORTERM: 'truecolor' }).includes('\x1b[1;36mAcme'), JSON.stringify(bad));
+  }
+});

@@ -202,7 +202,7 @@ module.exports = async function demo(_cmd, argv) {
       clearMs = Number(process.hrtime.bigint() - t0) / 1e6;
     } else if (action.type === 'impression') {
       impression = action;
-      telemetry.enqueue(makeEvent(cfg, 'impression', { ad_id: shownAd.ad_id, duration_ms: action.displayed_ms }));
+      telemetry.enqueue(makeEvent(cfg, 'impression', { ad_id: shownAd.ad_id, duration_ms: action.displayed_ms, surface: 'footer' }));
     } else if (action.type === 'idle_end') {
       telemetry.enqueue(makeEvent(cfg, 'idle_end', { duration_ms: action.duration_ms }));
     }
