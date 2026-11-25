@@ -71,15 +71,22 @@ privacy contract in detail.
 
 ## Embed the SDK
 
-AI-tool vendors can embed MeshAd with [`@meshad/sdk`](https://www.npmjs.com/package/@meshad/sdk) 0.2.0:
+AI-tool vendors can embed MeshAd with [`@meshad/sdk`](https://www.npmjs.com/package/@meshad/sdk) 0.2.1:
 
 ```bash
 npm install @meshad/sdk
 ```
 
-`init()` is synchronous. Wrap any async model call with `withMeshAd`, or use
-the lifecycle hooks (`onRequestStart`, `onFirstToken`, `onRequestEnd`, …).
-New vendors should pass `terminalType: 'other'` until registered. Docs:
+`init()` is synchronous. Wrap any async model call with `withMeshAd`, or
+iterate a stream with `trackStream` (the first item hides the ad; content is
+never inspected). Lifecycle hooks (`onRequestStart`, `onFirstToken`,
+`onRequestEnd`, …) carry timing only — the SDK never reads, stores or sends
+prompts, code, responses, file paths or repository names. Every ad is
+Ed25519-signed and verified before it is shown (`verifyAd`). New vendors
+should pass `terminalType: 'other'` until registered.
+
+Docs: [meshad.io/sdk](https://meshad.io/sdk) (quickstart, privacy allowlist,
+API reference and signed-pack verification). The same content also lives at
 [meshad.io/docs/sdk](https://meshad.io/docs/sdk).
 
 ## How it works
