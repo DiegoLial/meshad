@@ -15,11 +15,13 @@ const HELP = `
     frequency_cap_h         max ads per hour (integer 0..6; hard cap is 6)
     min_wait_ms             minimum wait before an ad may appear (≥ 2000)
     terminal_type_default   one of: ${TERMINAL_TYPES.join(', ')}
+    play_mode               yes | no | ask_later — games during agent waits
+    lang                    auto | en | pt-BR (auto = follow MESHAD_LANG / LANG)
     dev_mode                true/false — unlimited ads for integration testing;
                             NOTHING is sent or billed while on (you earn $0)
 `;
 
-const WRITABLE = ['api_url', 'frequency_cap_h', 'min_wait_ms', 'terminal_type_default', 'dev_mode'];
+const WRITABLE = ['api_url', 'frequency_cap_h', 'min_wait_ms', 'terminal_type_default', 'dev_mode', 'play_mode', 'lang'];
 
 module.exports = async function configCmd(_cmd, argv) {
   const { flags, rest } = parseFlags(argv, { help: 'bool' });
@@ -29,6 +31,7 @@ module.exports = async function configCmd(_cmd, argv) {
   }
 
   const cfg = config.load();
+  i18n.init(cfg);
   const [key, value] = rest;
 
   if (!key) {
@@ -75,6 +78,18 @@ module.exports = async function configCmd(_cmd, argv) {
     }
     cfg[key] = value === 'true';
     if (cfg[key]) console.log(c.yellow(i18n.t('config.devModeOn')));
+  } else if (key === 'play_mode') {
+    if (!['yes', 'no', 'ask_later'].includes(value)) {
+      console.error(`${c.red('error:')} ${i18n.t('config.playModeInvalid')}`);
+      return 2;
+    }
+    cfg[key] = value;
+  } else if (key === 'lang') {
+    if (!['auto', 'en', 'pt-BR'].includes(value)) {
+      console.error(`${c.red('error:')} ${i18n.t('config.langInvalid')}`);
+      return 2;
+    }
+    cfg[key] = value === 'auto' ? null : value;
   } else if (key === 'terminal_type_default') {
     if (!TERMINAL_TYPES.includes(value)) {
       console.error(`${c.red('error:')} terminal_type must be one of: ${TERMINAL_TYPES.join(', ')}`);

@@ -1,0 +1,438 @@
+{
+ "source": "Source: database.lichess.org, CC0",
+ "note": "Lichess puzzle database (CC0). fen is BEFORE the opponent's move; moves[0] is the opponent's move, then the solution alternates with forced replies. Append-only: order decides the daily pick.",
+ "puzzles": [
+  {
+   "id": "0000H",
+   "fen": "r4rk1/pp3ppp/8/2bqp2b/3N4/P2Bn2P/1PPN1P2/R1BQ1RK1 w - - 1 15",
+   "moves": [
+    "d1h5",
+    "d5g2"
+   ],
+   "rating": 1032,
+   "themes": "mate mateIn1 middlegame oneMove"
+  },
+  {
+   "id": "000pA",
+   "fen": "5rk1/5pp1/7p/3p4/1ppPn3/1K2PPP1/1P2N1P1/r4R1R w - - 0 24",
+   "moves": [
+    "b3b4",
+    "f8b8"
+   ],
+   "rating": 1008,
+   "themes": "endgame mate mateIn1 oneMove"
+  },
+  {
+   "id": "001cr",
+   "fen": "8/3B2pp/p5k1/2p3P1/1p1p1K2/8/1P6/8 b - - 0 38",
+   "moves": [
+    "c5c4",
+    "d7e8"
+   ],
+   "rating": 1531,
+   "themes": "bishopEndgame endgame mate mateIn1 oneMove"
+  },
+  {
+   "id": "001pC",
+   "fen": "r4rk1/pp3ppp/3b4/2p1pPB1/7N/2PP3n/PP4PP/R2Q1RqK w - - 5 18",
+   "moves": [
+    "f1g1",
+    "h3f2"
+   ],
+   "rating": 800,
+   "themes": "mate mateIn1 middlegame oneMove smotheredMate"
+  },
+  {
+   "id": "001wb",
+   "fen": "r3k2r/pb1p1ppp/1b4q1/1Q2P3/8/2NP1Pn1/PP4PP/R1B2R1K w kq - 1 17",
+   "moves": [
+    "h2g3",
+    "g6h5"
+   ],
+   "rating": 1259,
+   "themes": "mate mateIn1 middlegame oneMove"
+  },
+  {
+   "id": "002HE",
+   "fen": "1qr2rk1/1p1p1ppp/pB2p1n1/7n/2P1P3/1Q2NP1P/PP2B1Pb/3R1RK1 w - - 1 20",
+   "moves": [
+    "g1f2",
+    "b8g3"
+   ],
+   "rating": 1119,
+   "themes": "master mate mateIn1 middlegame oneMove"
+  },
+  {
+   "id": "002Q2",
+   "fen": "7k/p4R1p/3p3r/2pN1n2/2PbBBb1/3P2P1/P3r3/5R1K w - - 1 28",
+   "moves": [
+    "f4h6",
+    "f5g3"
+   ],
+   "rating": 985,
+   "themes": "cornerMate mate mateIn1 middlegame oneMove"
+  },
+  {
+   "id": "003AX",
+   "fen": "2r2rk1/5ppp/bq2p3/p1ppP1N1/Pb1P2P1/1P2P2P/2QN4/2R1K2R b K - 1 18",
+   "moves": [
+    "c5d4",
+    "c2h7"
+   ],
+   "rating": 1055,
+   "themes": "kingsideAttack mate mateIn1 middlegame oneMove"
+  },
+  {
+   "id": "003IX",
+   "fen": "8/3pk3/R7/1R2Pp1p/2PPnKr1/8/8/8 w - - 4 43",
+   "moves": [
+    "f4f5",
+    "e4g3"
+   ],
+   "rating": 1699,
+   "themes": "endgame mate mateIn1 oneMove"
+  },
+  {
+   "id": "004JD",
+   "fen": "3r4/R7/2p5/p1P2p2/1p4k1/nP6/P2KNP2/8 w - - 3 41",
+   "moves": [
+    "d2e3",
+    "a3c2"
+   ],
+   "rating": 1307,
+   "themes": "cornerMate endgame mate mateIn1 oneMove"
+  },
+  {
+   "id": "004WZ",
+   "fen": "r6k/1b3pp1/p1q1pn1p/2p5/P1B5/1PN4Q/2P1RP1P/R4Kr1 w - - 2 26",
+   "moves": [
+    "f1g1",
+    "c6h1"
+   ],
+   "rating": 866,
+   "themes": "mate mateIn1 middlegame oneMove"
+  },
+  {
+   "id": "004zI",
+   "fen": "2q3k1/4br1p/6RQ/1p1n2p1/7P/1P4P1/1B2PP2/6K1 b - - 0 27",
+   "moves": [
+    "h7g6",
+    "h6h8"
+   ],
+   "rating": 1406,
+   "themes": "endgame mate mateIn1 oneMove"
+  },
+  {
+   "id": "000Zo",
+   "fen": "4r3/1k6/pp3r2/1b2P2p/3R1p2/P1R2P2/1P4PP/6K1 w - - 0 35",
+   "moves": [
+    "e5f6",
+    "e8e1",
+    "g1f2",
+    "e1f1"
+   ],
+   "rating": 1363,
+   "themes": "endgame mate mateIn2 operaMate short"
+  },
+  {
+   "id": "000hf",
+   "fen": "r1bqk2r/pp1nbNp1/2p1p2p/8/2BP4/1PN3P1/P3QP1P/3R1RK1 b kq - 0 19",
+   "moves": [
+    "e8f7",
+    "e2e6",
+    "f7f8",
+    "e6f7"
+   ],
+   "rating": 1395,
+   "themes": "mate mateIn2 middlegame short"
+  },
+  {
+   "id": "001Wz",
+   "fen": "4r1k1/5ppp/r1p5/p1n1RP2/8/2P2N1P/2P3P1/3R2K1 b - - 0 21",
+   "moves": [
+    "e8e5",
+    "d1d8",
+    "e5e8",
+    "d8e8"
+   ],
+   "rating": 1118,
+   "themes": "backRankMate endgame mate mateIn2 short"
+  },
+  {
+   "id": "001om",
+   "fen": "5r1k/pp4pp/5p2/1BbQp1r1/6K1/7P/1PP3P1/3R3R w - - 2 26",
+   "moves": [
+    "g4h4",
+    "c5f2",
+    "g2g3",
+    "f2g3"
+   ],
+   "rating": 1016,
+   "themes": "mate mateIn2 middlegame morphysMate short"
+  },
+  {
+   "id": "001w5",
+   "fen": "1rb2rk1/q5P1/4p2p/3p3p/3P1P2/2P5/2QK3P/3R2R1 b - - 0 29",
+   "moves": [
+    "f8f7",
+    "c2h7",
+    "g8h7",
+    "g7g8q"
+   ],
+   "rating": 1034,
+   "themes": "advancedPawn attraction mate mateIn2 middlegame promotion short"
+  },
+  {
+   "id": "002Mm",
+   "fen": "rn1qr1k1/ppp3pQ/3p1pP1/3Pp3/2P1P3/8/PP3PP1/R1B1K3 b Q - 2 16",
+   "moves": [
+    "g8f8",
+    "h7h8",
+    "f8e7",
+    "h8g7"
+   ],
+   "rating": 915,
+   "themes": "deflection mate mateIn2 middlegame short"
+  },
+  {
+   "id": "002X3",
+   "fen": "6k1/2q2p1p/4pPp1/4P3/p1pP1P2/RrP5/6QP/4B1K1 b - - 0 33",
+   "moves": [
+    "b3a3",
+    "g2a8",
+    "c7b8",
+    "a8b8"
+   ],
+   "rating": 936,
+   "themes": "endgame mate mateIn2 short"
+  },
+  {
+   "id": "005Bm",
+   "fen": "4rk2/p1q5/1p3Q1b/8/1p5N/2P1p3/P3P3/2K5 b - - 0 43",
+   "moves": [
+    "c7f7",
+    "h4g6",
+    "f8g8",
+    "f6h8"
+   ],
+   "rating": 1476,
+   "themes": "endgame mate mateIn2 pin short"
+  },
+  {
+   "id": "005nD",
+   "fen": "3rk2r/2qn1pp1/p1Q1R3/3n3p/8/8/PP4PP/5R1K b k - 0 23",
+   "moves": [
+    "f7e6",
+    "c6e6",
+    "d5e7",
+    "e6f7"
+   ],
+   "rating": 1151,
+   "themes": "fork mate mateIn2 middlegame short"
+  },
+  {
+   "id": "006HV",
+   "fen": "1r6/5k2/2p1pNp1/p5Pp/1pQ1P2P/2P4R/KP3P2/3q4 w - - 4 31",
+   "moves": [
+    "c4c6",
+    "b4b3",
+    "a2a3",
+    "d1a1"
+   ],
+   "rating": 1112,
+   "themes": "endgame mate mateIn2 short"
+  },
+  {
+   "id": "006pe",
+   "fen": "r4r2/2q1NN2/4bQpk/2n4p/pp5P/8/1PP2PP1/2KR3R b - - 0 28",
+   "moves": [
+    "e6f7",
+    "e7f5",
+    "h6h7",
+    "f6g7"
+   ],
+   "rating": 1560,
+   "themes": "master mate mateIn2 middlegame pin short"
+  },
+  {
+   "id": "007ku",
+   "fen": "r1bq3Q/1np2kp1/p5B1/1p1Pp3/1Pn2BP1/2b2P2/P3K3/R4N2 b - - 5 35",
+   "moves": [
+    "f7g6",
+    "h8h5",
+    "g6f6",
+    "f4g5"
+   ],
+   "rating": 1687,
+   "themes": "mate mateIn2 middlegame short"
+  },
+  {
+   "id": "001wR",
+   "fen": "6nr/pp3p1p/k1p5/8/1QN5/2P1P3/4KPqP/8 b - - 5 26",
+   "moves": [
+    "b7b5",
+    "b4a5",
+    "a6b7",
+    "c4d6",
+    "b7b8",
+    "a5d8"
+   ],
+   "rating": 1170,
+   "themes": "endgame long mate mateIn3"
+  },
+  {
+   "id": "0048x",
+   "fen": "6k1/7p/4p1p1/QP2Pp2/P1pq4/5bRK/7r/6R1 w - - 0 39",
+   "moves": [
+    "h3h2",
+    "d4h4",
+    "g3h3",
+    "h4f2",
+    "g1g2",
+    "f2g2"
+   ],
+   "rating": 1433,
+   "themes": "endgame exposedKing long mate mateIn3"
+  },
+  {
+   "id": "005wy",
+   "fen": "1r6/pp2kpp1/2n1p1n1/3p2PQ/5P2/2PqP3/PP1N4/2KR3R w - - 3 27",
+   "moves": [
+    "h5h7",
+    "c6b4",
+    "c3b4",
+    "b8c8",
+    "d2c4",
+    "c8c4"
+   ],
+   "rating": 1918,
+   "themes": "long mate mateIn3 middlegame queensideAttack sacrifice"
+  },
+  {
+   "id": "007en",
+   "fen": "rn3rk1/4pp1p/3p2pB/2q4P/3bP1b1/Pp2Q3/1P2B3/1K1R2NR w - - 0 20",
+   "moves": [
+    "e3d4",
+    "c5c2",
+    "b1a1",
+    "a8a3",
+    "b2a3",
+    "c2a2"
+   ],
+   "rating": 1766,
+   "themes": "long mate mateIn3 middlegame queensideAttack sacrifice"
+  },
+  {
+   "id": "00F6y",
+   "fen": "2k3r1/ppp2prp/1q2b3/8/Q7/2P1R1P1/P4P1P/4R1K1 b - - 3 23",
+   "moves": [
+    "e6d7",
+    "e3e8",
+    "d7e8",
+    "e1e8",
+    "g8e8",
+    "a4e8"
+   ],
+   "rating": 937,
+   "themes": "long mate mateIn3 middlegame queensideAttack sacrifice"
+  },
+  {
+   "id": "00GuD",
+   "fen": "1n5k/4r1p1/p2q1rPp/1ppB4/8/3P4/PPP1RPQ1/2K4R b - - 4 25",
+   "moves": [
+    "e7e2",
+    "h1h6",
+    "g7h6",
+    "g6g7",
+    "h8h7",
+    "g7g8q"
+   ],
+   "rating": 1109,
+   "themes": "advancedPawn kingsideAttack long mate mateIn3 middlegame promotion sacrifice"
+  },
+  {
+   "id": "00Gv1",
+   "fen": "8/1pp1r1kp/4r1p1/p1P5/5Q2/P4PPq/1P1R3P/3R2K1 w - - 2 32",
+   "moves": [
+    "d2d8",
+    "e6e1",
+    "d1e1",
+    "e7e1",
+    "g1f2",
+    "h3f1"
+   ],
+   "rating": 989,
+   "themes": "endgame long mate mateIn3"
+  },
+  {
+   "id": "00Ivf",
+   "fen": "8/2p4r/1p3k2/p2Pp1p1/P1P1RpP1/1P3P1r/4R1K1/8 w - - 7 46",
+   "moves": [
+    "e4e5",
+    "h3h2",
+    "g2f1",
+    "h2h1",
+    "f1f2",
+    "h7h2"
+   ],
+   "rating": 1622,
+   "themes": "endgame long mate mateIn3 rookEndgame"
+  },
+  {
+   "id": "00J1t",
+   "fen": "r1qr3k/pp3pB1/1np1pb2/8/3P3P/2N2PR1/PP1Q2P1/2KR4 b - - 0 22",
+   "moves": [
+    "f6g7",
+    "d2g5",
+    "d8g8",
+    "g5h5",
+    "g7h6",
+    "h5h6"
+   ],
+   "rating": 1678,
+   "themes": "exposedKing kingsideAttack long mate mateIn3 middlegame"
+  },
+  {
+   "id": "00JR7",
+   "fen": "r4rk1/pp2q1p1/2p1p2p/3nP1pP/3P2P1/2PQ1R2/PPB5/R5K1 b - - 1 23",
+   "moves": [
+    "f8f3",
+    "d3h7",
+    "g8f7",
+    "c2g6",
+    "f7f8",
+    "h7h8"
+   ],
+   "rating": 1445,
+   "themes": "kingsideAttack long mate mateIn3 middlegame"
+  },
+  {
+   "id": "00Kbj",
+   "fen": "8/8/6p1/PR3p2/1P3k2/7P/r5P1/7K w - - 1 39",
+   "moves": [
+    "h3h4",
+    "f4g3",
+    "b5d5",
+    "a2a1",
+    "d5d1",
+    "a1d1"
+   ],
+   "rating": 1481,
+   "themes": "endgame long mate mateIn3 rookEndgame"
+  },
+  {
+   "id": "00NHK",
+   "fen": "r1b2rk1/1p2b1p1/pqn1p1P1/3pP3/1P1P4/P1N1P3/6P1/R2QK2R b KQ - 0 17",
+   "moves": [
+    "c6e5",
+    "h1h8",
+    "g8h8",
+    "d1h5",
+    "h8g8",
+    "h5h7"
+   ],
+   "rating": 1847,
+   "themes": "attraction fork long mate mateIn3 middlegame sacrifice"
+  }
+ ]
+}

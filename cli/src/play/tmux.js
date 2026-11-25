@@ -71,4 +71,74 @@ function paneInfo(paneId, { run = spawnSync } = {}) {
   };
 }
 
-module.exports = { paneInfo, available, playCommand, openSplit, paneAlive, shq };
+/**
+ * `prefix + j` (Ctrl+B J): open `meshad play` in a horizontal split, or focus the
+ * one that is already alive (found through the render signal's pane id). Runs
+ * inside tmux's run-shell, never inside the wrapped agent. Returns the pane id
+ * or null. Best-effort: never throws.
+ */
+function openOrFocus({ dir, env = process.env, run = spawnSync, readRender } = {}) {
+  try {
+    const render = (readRender || require('./bridge').readRender)(dir);
+    if (render && render.pane && paneAlive(render.pane, { run })) {
+      run('tmux', ['select-pane', '-t', render.pane], { timeout: 1500 });
+      return render.pane;
+    }
+    const r = run(
+      'tmux',
+      ['split-window', '-h', '-P', '-F', '#{pane_id}', playCommand({ dir, env })],
+      { encoding: 'utf8', timeout: 1500 },
+    );
+    if (!r || r.status !== 0) return null;
+    const id = String(r.stdout || '').trim();
+    return /^%\d+$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Bind `prefix + j` to openOrFocus. tmux key tables are server-wide, so when the
+ * session id is known the binding only acts in OUR session (other sessions fall
+ * through to whatever `j` did before). The previous binding is remembered and put
+ * back by unbindPlayKey. Best-effort: returns a handle (or null), never throws.
+ */
+function bindPlayKey({ dir, env = process.env, run = spawnSync, node = process.execPath } = {}) {
+  try {
+    const ask = (args, input) => run('tmux', args, { encoding: 'utf8', timeout: 1500, input });
+    const prevOut = ask(['list-keys', '-T', 'prefix', 'j']);
+    const prevLine = prevOut && prevOut.status === 0 ? String(prevOut.stdout || '').split('\n')[0].trim() : '';
+    const m = /^bind-key\s+(?:-r\s+)?-T\s+prefix\s+j\s+(.+)$/.exec(prevLine);
+    const sidOut = ask(['display-message', '-p', '#{session_id}']);
+    const sid = sidOut && sidOut.status === 0 ? String(sidOut.stdout || '').trim() : '';
+
+    const script = [node, __filename, 'open-or-focus', dir].map(shq).join(' ');
+    const action = `run-shell -b ${shq(script)}`;
+    const args = /^\$\d+$/.test(sid)
+      ? ['bind-key', '-T', 'prefix', 'j', 'if-shell', '-F', `#{==:#{session_id},${sid}}`, action, ...(m ? [m[1]] : [])]
+      : ['bind-key', '-T', 'prefix', 'j', 'run-shell', '-b', script];
+    const r = ask(args);
+    if (!r || r.status !== 0) return null;
+    return { prev: m ? prevLine : null };
+  } catch {
+    return null;
+  }
+}
+
+/** Undo bindPlayKey: restore the previous `prefix j` binding, or just unbind. Never throws. */
+function unbindPlayKey(handle, { run = spawnSync } = {}) {
+  if (!handle) return;
+  try {
+    if (handle.prev) {
+      const r = run('tmux', ['source-file', '-'], { encoding: 'utf8', timeout: 1500, input: handle.prev + '\n' });
+      if (r && r.status === 0) return;
+    }
+    run('tmux', ['unbind-key', '-T', 'prefix', 'j'], { stdio: 'ignore', timeout: 1500 });
+  } catch { /* best effort */ }
+}
+
+module.exports = { paneInfo, available, playCommand, openSplit, paneAlive, openOrFocus, bindPlayKey, unbindPlayKey, shq };
+
+if (require.main === module && process.argv[2] === 'open-or-focus' && process.argv[3]) {
+  openOrFocus({ dir: process.argv[3] });
+}

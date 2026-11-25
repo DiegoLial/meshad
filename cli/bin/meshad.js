@@ -25,8 +25,10 @@ const COMMANDS = {
   'rotate-id': { mod: 'rotate', desc: 'Generate a new anon_id and re-register the device' },
   report: { mod: 'report', desc: 'Report an ad: meshad report <ad_id>' },
   demo: { mod: 'demo', desc: 'Simulate an AI agent thinking and exercise the full ad flow' },
-  run: { mod: 'run', desc: 'Wrap a command: meshad run [--play] -- <cmd> (idle = output silence > 1.5s)' },
+  run: { mod: 'run', desc: 'Wrap a command: meshad run [--play] [--news] -- <cmd> (idle = output silence > 1.5s)' },
+  menu: { mod: 'menu', desc: 'Interactive menu: play a game, settings, status (also: bare `meshad` in a terminal)' },
   play: { mod: 'play', desc: 'Play a tiny game while your agent thinks: meshad play [runner|termo]' },
+  interests: { mod: 'interests', desc: 'Optional local-only dev/AI headlines while you wait: meshad interests add <topic...>' },
   uninstall: { mod: 'uninstall', desc: 'Remove all local MeshAd data' },
   update: { mod: 'update', desc: 'Update the CLI to the latest published version' },
 };
@@ -48,7 +50,10 @@ function usage() {
 
 async function main() {
   const argv = process.argv.slice(2);
-  const cmd = argv[0];
+  // Bare `meshad` opens the menu on a real terminal; anywhere else it keeps
+  // printing usage (exit 2) so scripts and pipes see no change.
+  const interactive = !argv[0] && process.stdin.isTTY && process.stdout.isTTY;
+  const cmd = interactive ? 'menu' : argv[0];
 
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
     console.log(usage());

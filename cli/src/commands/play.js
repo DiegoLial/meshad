@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * meshad play [runner|termo] — a tiny terminal game for the time your agent
+ * meshad play [runner|termo|snake|flappy|blocks|slide|chess] — a tiny terminal game for the time your agent
  * spends thinking. Separate process, its own TTY (alternate screen): it never
  * reads or forwards the agent's stdin. Talks to `meshad run --play` only
  * through the state file in the config dir (see play/bridge.js).
@@ -11,22 +11,33 @@
  * until the player joins, ../leaderboard is never even loaded.
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
 const config = require('../config');
 const i18n = require('../i18n');
 const { c, parseFlags } = require('../util');
 const { PlaySession, GAMES } = require('../play/session');
 const { runTty } = require('../play/ui');
-const { loadSkin } = require('../play/skin');
+const { findSkinAd, loadSkin, skinAccent } = require('../play/skin');
+const streaks = require('../play/streak');
 const bridge = require('../play/bridge');
+const { selectPrompt, textPrompt } = require('../menu');
+
+const HANDLE_RE = /^[A-Za-z0-9_-]{3,16}$/; // same rule as ../leaderboard, kept here so it stays unloaded until opt-in
 
 const HELP = `
-  meshad play [runner|termo] — a small game for while your agent thinks
+  meshad play [runner|termo|snake|flappy|blocks|slide|chess] — a small game for while your agent thinks
 
   Games:
     runner   Wait Runner: dino-style, one key (Space) to jump, short sessions
     termo    Termo Dev: guess today's 5-letter developer word in 6 tries
+    snake    Snake: eat, grow, don't hit a wall or yourself
+    flappy   Flappy Term: flap through the gaps in the pipes
+    blocks   Meshad Blocks: stack falling pieces, clear lines (next piece + ghost)
+    slide    Slide 2048: merge equal tiles on a 4x4 board
+    chess    Daily Mate: today's mate-in-N puzzle, 3 lives (type moves like e2e4 or Nf3)
 
-  Same day, same seed: everyone gets the same word and the same obstacles.
+  Same day, same seed: everyone gets the same word, obstacles, pieces and puzzle.
   When a game ends you get a share string to copy (text only, no links).
 
   Run it in a second terminal pane/tab. It watches \`meshad run --play\`:
@@ -49,7 +60,16 @@ const HELP = `
     --ad <id>     (used by \`meshad run --play\`) sponsored skin from the local
                   ad cache; its signature is re-verified before drawing
 
-  Keys: Space = jump / keep playing · P pause (runner) · Esc or Ctrl+C quit
+  Keys (Esc or Ctrl+C always quits, R restarts, P pauses the real-time games):
+    runner   Space jump
+    termo    letters · Enter submit · Backspace
+    snake    arrows / WASD / hjkl turn
+    flappy   Space or Up flap
+    blocks   Left/Right move · Up or X rotate · Z rotate back · Down soft drop · Space hard drop
+             (WASD / hjkl work too)
+    slide    arrows / WASD / hjkl slide the tiles (Esc banks your score)
+    chess    type a move (e2e4, e7e8q, Nf3, O-O) · Enter · Backspace
+    While the game is frozen (your agent is answering): Space = keep playing
 `;
 
 module.exports = async function play(_cmd, argv) {
@@ -75,10 +95,18 @@ module.exports = async function play(_cmd, argv) {
   }
 
   const dir = config.configDir();
+  if (!game) return playMenu({ dir, flags });
+  await playGame(game, { dir, flags });
+  return 0;
+};
+
+/** Run one game in the alternate screen, then print the share string and submit the score. */
+async function playGame(game, { dir, flags }) {
   const skinLines = game && flags.ad
     ? loadSkin({ dir, adId: flags.ad, game, cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 })
     : [];
-  const session = new PlaySession({ game, dir, skinLines });
+  const skinAd = game && flags.ad ? findSkinAd({ dir, adId: flags.ad, game }) : null;
+  const session = new PlaySession({ game, dir, skinLines, skinAccent: skinAccent(skinAd) });
   // Tell `meshad run` when this pane is really drawing (local file, see play/bridge.js).
   const renderSignal = {
     beat: () => bridge.writeRender(dir, Date.now(), process.env.TMUX_PANE || null),
@@ -88,11 +116,65 @@ module.exports = async function play(_cmd, argv) {
 
   // Back on the normal screen: leave the share string in the scrollback to copy.
   if (session.shareText) {
-    console.log(`\n${i18n.t('play.share.title')}\n${session.shareText}\n`);
+    const card = session.shareCardLines();
+    console.log(`\n${card.length ? `${card.join('\n')}\n\n` : ''}${i18n.t('play.share.title')}\n${session.shareText}\n`);
   }
   if (session.result && !flags['no-submit']) await submitResult(session.result, dir);
-  return 0;
-};
+}
+
+/** Interactive game picker: stays open after each game / leaderboard action; Back, Esc or Ctrl-C leaves. */
+async function playMenu({ dir = config.configDir(), flags = {}, stdin, stdout, runGame = playGame } = {}) {
+  const io = { stdin, stdout };
+  let last = 0;
+  for (;;) {
+    const { t } = i18n;
+    // Only touch the leaderboard module when a handle file already exists (explicit opt-in).
+    const me = fs.existsSync(path.join(dir, 'leaderboard.json')) ? require('../leaderboard').load(dir) : null;
+    const stats = streaks.load(dir);
+    const today = new Date().toISOString().slice(0, 10);
+    const statHint = (game, base) => {
+      const e = stats[game];
+      const live = streaks.liveStreak(e, today);
+      return [base, e.best > 0 ? t('play.pick.stats', { best: e.best }) : '', live > 0 ? t('play.pick.streak', { n: live }) : ''].filter(Boolean).join(' · ');
+    };
+    const options = [
+      ...GAMES.map((g) => ({ value: g, label: t(`play.pick.${g}`), hint: statHint(g, t(`play.pick.${g}.hint`)) })),
+      me
+        ? { value: 'join', label: t('play.pick.change'), hint: t('play.pick.change.hint', { handle: me.handle }) }
+        : { value: 'join', label: t('play.pick.join'), hint: t('play.pick.join.hint') },
+      { value: 'leave', label: t('play.pick.leave'), hint: t('play.pick.leave.hint'), disabled: !me },
+      { value: 'news', label: t('play.pick.news'), hint: t('play.pick.news.hint') },
+      { value: 'back', label: t('menu.back') },
+    ];
+    const pick = await selectPrompt({ title: t('play.pick.title'), subtitle: t('play.pick.subtitle'), options, initialIndex: last, ...io });
+    if (pick === null || pick === 'back') return 0;
+    last = options.findIndex((o) => o.value === pick);
+
+    if (GAMES.includes(pick)) {
+      await runGame(pick, { dir, flags });
+    } else if (pick === 'news') {
+      await require('../news-view').showNews({ dir, fetch: false, ...io }); // play stays offline: cache only
+    } else if (pick === 'join') {
+      const handle = await textPrompt({
+        title: t('play.pick.nick.title'),
+        placeholder: t('play.pick.nick.placeholder'),
+        validate: (v) => (HANDLE_RE.test(v) ? null : t('play.lb.badHandle')),
+        ...io,
+      });
+      if (handle === null) continue;
+      try {
+        const r = await require('../leaderboard').join(handle, { dir });
+        console.log(i18n.t('play.lb.joined', { handle: r.handle }));
+      } catch (e) {
+        const reason = e.status === 409 ? i18n.t('play.lb.taken') : e.message;
+        console.error(`${c.red('error:')} ${i18n.t('play.lb.joinFailed', { reason })}`);
+      }
+    } else if (pick === 'leave') {
+      const r = await require('../leaderboard').leave({ dir });
+      console.log(r.left ? i18n.t(r.remoteDeleted ? 'play.lb.left' : 'play.lb.leftLocalOnly') : i18n.t('play.lb.notJoined'));
+    }
+  }
+}
 
 /** Opt-in leaderboard: join / leave. Needs no TTY. */
 async function leaderboardCommand(flags) {
@@ -130,4 +212,5 @@ async function submitResult(result, dir) {
   }
 }
 
+module.exports.playMenu = playMenu;
 module.exports.submitResult = submitResult; // exported for tests (no TTY needed)

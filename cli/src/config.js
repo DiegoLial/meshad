@@ -26,6 +26,9 @@ const DEFAULTS = {
   min_wait_ms: 8000,
   terminal_type_default: 'other',
   lang: null, // null = auto (MESHAD_LANG → LANG env); or 'en' | 'pt-BR'
+  // Easy-UX onboarding (see onboarding.js). play_mode: null (unanswered) | 'yes' | 'no' | 'ask_later'.
+  play_mode: null,
+  onboarding_done: false,
 };
 
 const CONFIG_KEYS = Object.keys(DEFAULTS);

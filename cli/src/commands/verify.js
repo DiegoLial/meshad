@@ -9,12 +9,15 @@
  */
 
 const fs = require('node:fs');
+const path = require('node:path');
 const crypto = require('node:crypto');
 const config = require('../config');
 const i18n = require('../i18n');
 const schema = require('../schema');
 const { validateEvent } = schema;
 const { AdCache } = require('../adcache');
+const interests = require('../interests');
+const { QUEUE_FILE, LAST_BATCH_FILE } = require('../telemetry');
 const { meshFetch, ALLOWED_HOSTS } = require('../net');
 const { c, parseFlags } = require('../util');
 
@@ -105,6 +108,25 @@ module.exports = async function verify(_cmd, argv) {
     }
   } else {
     check(true, 'ad cache is empty (nothing unverified can render)');
+  }
+
+  // 4b. declared interests stay local: owner-only file, and no topic string in
+  //     anything that is (or was) queued for upload.
+  const interestsPath = path.join(dir, interests.FILE);
+  if (fs.existsSync(interestsPath)) {
+    let imode = null;
+    try { imode = fs.statSync(interestsPath).mode & 0o777; } catch { /* raced away */ }
+    check(imode === 0o600, `interests.json permissions are 0600 (${imode === null ? 'unreadable' : '0' + imode.toString(8)})`);
+    const topics = interests.loadInterests(dir).topics;
+    const outbound = [QUEUE_FILE, LAST_BATCH_FILE].map((f) => {
+      try { return fs.readFileSync(path.join(dir, f), 'utf8'); } catch { return ''; }
+    }).join('\n');
+    const leaked = topics.filter((tp) => outbound.includes(tp));
+    check(leaked.length === 0, leaked.length === 0
+      ? 'no declared interest appears in the telemetry queue or last batch'
+      : `declared interest(s) found in telemetry files: ${leaked.join(', ')}`);
+  } else {
+    check(true, 'no interests declared (news is off)');
   }
 
   // 5. the network's public transparency log enforces this exact allowlist

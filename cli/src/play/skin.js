@@ -44,10 +44,25 @@ function findSkinAd({ dir, adId, game }) {
   return verifyAd(ad, key.public_key_b64) ? ad : null;
 }
 
+/**
+ * Palette accent for a verified skin, derived from the ad's own SIGNED `render.color`
+ * (a closed set of colour names) — the advertiser never ships a hex value, and the
+ * signed canonical schema is unchanged. Unknown or missing → null (default palette).
+ */
+const ACCENT_BY_COLOR = {
+  cyan: 'cyan', bright_cyan: 'cyan', magenta: 'magenta', bright_magenta: 'magenta', green: 'lime', bright_green: 'lime',
+  yellow: 'amber', bright_yellow: 'amber', red: 'red', bright_red: 'red', blue: 'sky', bright_blue: 'sky',
+};
+
+function skinAccent(ad) {
+  const name = ad && ad.render && typeof ad.render.color === 'string' ? ad.render.color : '';
+  return Object.prototype.hasOwnProperty.call(ACCENT_BY_COLOR, name) ? ACCENT_BY_COLOR[name] : null;
+}
+
 /** Banner lines (ANSI strings) for the verified skin ad, or [] when there is none. */
 function loadSkin({ dir, adId, game, cols = 80, rows = 24 }) {
   const ad = findSkinAd({ dir, adId, game });
   return ad ? formatAd(ad, cols, rows) : [];
 }
 
-module.exports = { findSkinAd, loadSkin, CACHE_FILE, PUBKEY_FILE };
+module.exports = { findSkinAd, loadSkin, skinAccent, CACHE_FILE, PUBKEY_FILE };

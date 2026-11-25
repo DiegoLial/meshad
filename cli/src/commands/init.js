@@ -90,6 +90,9 @@ module.exports = async function init(_cmd, argv) {
   cfg.account_id = reg.account_id;
   cfg.anon_id = crypto.randomUUID();
   cfg.api_url = apiUrl;
+  // Non-interactive (CI/PTY tests) must never block on first-run onboarding;
+  // an interactive init leaves it false so the first `meshad` run asks.
+  if (flags.yes) cfg.onboarding_done = true;
   config.save(cfg);
 
   await request(apiUrl, 'POST', '/v1/publisher/devices', {
