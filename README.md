@@ -48,7 +48,7 @@ AI agents spend real time thinking, planning, indexing and executing. MeshAd tur
 ## Install the CLI
 
 ```bash
-curl -fsSL https://meshad.io/install | sh   # 0.4.0, with the colourful games and news
+curl -fsSL https://meshad.io/install | sh   # 0.5.0, with the games, the waiting ad and news
 meshad init
 ```
 
@@ -57,7 +57,7 @@ offline — no network, nothing saved.
 
 The npm package [`@meshad/cli`](https://www.npmjs.com/package/@meshad/cli)
 is still an older version. Do not use `npm` or `npx` until a later publish.
-This repository's [`cli/`](cli) is **0.4.0**, mirrored from the private core:
+This repository's [`cli/`](cli) is **0.5.0**, mirrored from the private core:
 Wait Runner, Termo Dev, Snake, Flappy Term, Meshad Blocks, Slide 2048 and
 Daily Mate, plus the opt-in news view. You can also install from this repo:
 

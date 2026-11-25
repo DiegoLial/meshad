@@ -70,4 +70,26 @@ function record(dir, game, date, result) {
   return all[game];
 }
 
-module.exports = { FILE, GAME_KEYS, load, record, apply, liveStreak, prevDay, emptyEntry };
+const HINTS_FILE = 'play-hints.json';
+
+/** Which games already showed their one-line controls hint (local, 0600). Garbage reads as "none seen". */
+function loadHints(dir) {
+  let raw = null;
+  try { raw = JSON.parse(fs.readFileSync(path.join(dir, HINTS_FILE), 'utf8')); } catch { /* none yet */ }
+  return Object.fromEntries(GAME_KEYS.map((g) => [g, !!(raw && raw[g] === true)]));
+}
+
+/** First-match hint for `game`: true until markHintSeen(dir, game). */
+function hintPending(dir, game) {
+  return GAME_KEYS.includes(game) && !loadHints(dir)[game];
+}
+
+function markHintSeen(dir, game) {
+  if (!GAME_KEYS.includes(game)) return;
+  const all = loadHints(dir);
+  if (all[game]) return;
+  all[game] = true;
+  try { writeFileAtomic(dir, HINTS_FILE, JSON.stringify(all, null, 2) + '\n'); } catch { /* best effort */ }
+}
+
+module.exports = { FILE, HINTS_FILE, hintPending, markHintSeen, loadHints, GAME_KEYS, load, record, apply, liveStreak, prevDay, emptyEntry };

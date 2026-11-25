@@ -8,10 +8,12 @@
 
 const { parseKeys } = require('./session');
 const { RENDER_BEAT_MS } = require('./bridge');
-const { rowsPatch } = require('./term');
+const { rowsPatch, guardTerminal } = require('./term');
 
 const ESC = '\x1b';
 const POLL_EVERY_MS = 250; // bridge poll
+const SYNC_ON = `${ESC}[?2026h`;
+const SYNC_OFF = `${ESC}[?2026l`;
 
 /**
  * Run the session until it is done. Resolves once the terminal is restored.
@@ -40,7 +42,7 @@ function runTty(session, { stdin = process.stdin, stdout = process.stdout, rende
       if (!patch) return; // unchanged frame: write nothing
       const stale = last.length > lines.length ? `${ESC}[${lines.length + 1};1H${ESC}[J` : '';
       last = lines;
-      stdout.write(`${patch}${stale}`);
+      stdout.write(`${SYNC_ON}${patch}${stale}${SYNC_OFF}`); // one atomic frame: terminals that know mode 2026 never show half a repaint
     };
 
     const close = () => {
@@ -49,17 +51,18 @@ function runTty(session, { stdin = process.stdin, stdout = process.stdout, rende
       clearTimeout(timer);
       stdin.off('data', onData);
       stdout.off('resize', onResize);
-      process.off('exit', restore);
-      process.off('SIGTERM', onSignal);
-      process.off('SIGHUP', onSignal);
+      release();
       restore();
       resolve();
     };
     const signal = (fn) => { try { if (renderSignal) renderSignal[fn](); } catch { /* best effort */ } };
-    const restore = () => {
+    let restored = false;
+    const restore = () => { // idempotent: runs on close, on exit, on signals and after an uncaught error
+      if (restored) return;
+      restored = true;
       signal('clear');
       try { stdin.setRawMode(false); } catch { /* not a TTY anymore */ }
-      stdin.pause();
+      try { stdin.pause(); } catch { /* already gone */ }
       stdout.write(`${ESC}[?25h${ESC}[?1049l`);
     };
     const onData = (chunk) => {
@@ -69,6 +72,7 @@ function runTty(session, { stdin = process.stdin, stdout = process.stdout, rende
     };
     const onResize = () => { last = []; stdout.write(`${ESC}[2J`); draw(); };
     const onSignal = () => { session.done = true; close(); };
+    const release = guardTerminal({ restore, onSignal });
 
     stdout.write(`${ESC}[?1049h${ESC}[?25l${ESC}[2J`);
     stdin.setRawMode(true);
@@ -76,9 +80,6 @@ function runTty(session, { stdin = process.stdin, stdout = process.stdout, rende
     stdin.setEncoding('utf8');
     stdin.on('data', onData);
     stdout.on('resize', onResize);
-    process.on('exit', restore); // last resort: never leave the user in the alt screen
-    process.on('SIGTERM', onSignal);
-    process.on('SIGHUP', onSignal);
 
     const loop = () => {
       if (closed) return;

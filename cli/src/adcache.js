@@ -7,8 +7,9 @@
  *   their TTL; nothing on the render path ever touches the network.
  * - The signing public key comes from GET /v1/keys/public (DER-SPKI base64)
  *   and is cached in pubkey.json.
- * - The pack request declares `features=game`: this client verifies render.game
- *   (older ones would drop such ads, so the server leaves them out for them).
+ * - The pack request declares `features=game,games,colors`: this client verifies render.game
+ *   (all 7 ids) and render.colors (older ones would drop such ads, so the server leaves
+ *   them out for them).
  * - Every ad is verified against the canonical JSON defined in CONTRACT.md:
  *   JSON.stringify of {ad_id, campaign_id, format, min_wait_ms,
  *   render:{text,lines,cta,color,emoji,art_lines,frames,transition,loop}} with
@@ -147,7 +148,7 @@ class AdCache {
     if (this._inflight) return this._inflight;
     this._inflight = (async () => {
       const cache = this.peek();
-      const q = new URLSearchParams({ anon_id: anonId, terminal_type: terminalType, max: String(max), features: 'game' });
+      const q = new URLSearchParams({ anon_id: anonId, terminal_type: terminalType, max: String(max), features: 'game,games,colors' });
       const [publicKey, pack] = await Promise.all([
         this.getPublicKey(),
         this._get(`/v1/ads/pack?${q}`),

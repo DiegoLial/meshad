@@ -158,6 +158,7 @@ module.exports = async function run(_cmd, argv) {
 
   let ads = cfg.dev_mode ? HYPOTHETICAL_ADS : [];
   let shownAd = null;
+  let shownSurface = 'footer'; // where shownAd is on screen: the one-line footer, or the sponsored game split
   let shownNews = false; // standalone headlines on screen (no ad, nothing billed)
   let newsFeed = [];
   let lastOutputAt = Date.now();
@@ -227,7 +228,7 @@ module.exports = async function run(_cmd, argv) {
       if (action.type === 'clear') {
         animator.stop(); // FIRST, synchronous — the <100ms invariant
       } else if (action.type === 'impression' && shownAd) {
-        telemetry.enqueue(makeEvent(cfg, 'impression', { ad_id: shownAd.ad_id, duration_ms: action.displayed_ms }));
+        telemetry.enqueue(makeEvent(cfg, 'impression', { ad_id: shownAd.ad_id, duration_ms: action.displayed_ms, surface: shownSurface }));
       } else if (action.type === 'idle_end') {
         telemetry.enqueue(makeEvent(cfg, 'idle_end', { duration_ms: action.duration_ms }));
       }
@@ -274,6 +275,7 @@ module.exports = async function run(_cmd, argv) {
     for (const action of fsm.tick(now)) {
       if (action.type === 'display') {
         shownAd = gameAd;
+        shownSurface = 'game';
         visibility = new VisibilityTracker();
         lastSampleAt = 0;
       }
@@ -345,6 +347,7 @@ module.exports = async function run(_cmd, argv) {
       for (const action of fsm.tick(now)) {
         if (action.type === 'display') {
           shownAd = adcache.nextAd(ads) || ads[0]; // one unit per wait, rotating through the ranked pack
+          shownSurface = 'footer';
           // Static creatives yield a single-step timeline, so this is the same
           // single synchronous write they always were.
           const cols = process.stdout.columns || 80;

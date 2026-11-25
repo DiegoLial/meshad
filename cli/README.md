@@ -38,7 +38,7 @@ Patrocínio: um anúncio `ascii_panel` pode trazer `render.game` (`runner` | `te
 ## Instalar como usuário final (fora do monorepo)
 
 ```bash
-curl -fsSL https://meshad.io/install | sh   # 0.4.0, com os jogos e as notícias
+curl -fsSL https://meshad.io/install | sh   # 0.5.0, com os jogos, o anúncio de espera e as notícias
 meshad demo                                  # anúncios fictícios, offline, sem conta
 meshad init
 ```

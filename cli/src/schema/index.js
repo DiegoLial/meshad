@@ -20,7 +20,9 @@ const TERMINAL_TYPES = [
   'claude-code', 'gemini-cli', 'codex', 'aider', 'opencode',
   'cursor', 'windsurf', 'kiro', 'continue', 'other',
 ];
-const ALLOWED_FIELDS = ['event', 'ts', 'anon_id', 'terminal_type', 'duration_ms', 'ad_id', 'sdk_version'];
+const ALLOWED_FIELDS = ['event', 'ts', 'anon_id', 'terminal_type', 'duration_ms', 'ad_id', 'sdk_version', 'surface'];
+/** Where an impression/click happened: the footer ad, or inside a sponsored game. */
+const SURFACES = ['footer', 'game'];
 const REQUIRED_FIELDS = ['event', 'ts', 'anon_id', 'terminal_type', 'sdk_version'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -66,6 +68,12 @@ function validateEvent(ev) {
       errors.push(`ad_id not allowed on event type: ${ev.event}`);
     }
   }
+  if ('surface' in ev) {
+    if (!SURFACES.includes(ev.surface)) errors.push(`invalid surface: ${ev.surface}`);
+    if (!['impression', 'click'].includes(ev.event)) {
+      errors.push(`surface not allowed on event type: ${ev.event}`);
+    }
+  }
   if (ev.event === 'impression' && !('ad_id' in ev)) errors.push('impression requires ad_id');
   if (ev.event === 'click' && !('ad_id' in ev)) errors.push('click requires ad_id');
   if (ev.event === 'idle_end' && !('duration_ms' in ev)) errors.push('idle_end requires duration_ms');
@@ -100,6 +108,7 @@ module.exports = {
   TELEMETRY_SCHEMA,
   SCHEMA_VERSION: '1.0.0',
   EVENT_TYPES,
+  SURFACES,
   TERMINAL_TYPES,
   ALLOWED_FIELDS,
   REQUIRED_FIELDS,

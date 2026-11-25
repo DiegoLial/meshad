@@ -10,6 +10,8 @@ const HELP = `
   meshad interests — optional, local-only dev/AI headlines while you wait
 
   Usage:
+    meshad interests                          (in a terminal) pick topics interactively
+    meshad interests edit                     same as above (alias: pick)
     meshad interests add <topic...> [--yes]   declare topics (asks consent the first time)
     meshad interests list                     show your topics and status (alias: show)
     meshad interests remove <topic...>        drop topics
@@ -89,11 +91,23 @@ module.exports = async function interestsCmd(_cmd, argv) {
   const { t } = i18n;
   const { flags, rest } = parseFlags(argv, { yes: 'bool', help: 'bool' });
   const sub = rest[0];
-  if (flags.help || !sub || sub === 'help') {
+  const tty = !!(process.stdin.isTTY && process.stdout.isTTY);
+  const interactive = sub === 'edit' || sub === 'pick' || (!sub && !flags.help && tty);
+  if (!interactive && (flags.help || !sub || sub === 'help')) {
     console.log(HELP);
     return sub || flags.help ? 0 : 2;
   }
   const dir = config.configDir();
+  if (interactive) {
+    if (!tty) {
+      console.error(`${c.red('error:')} ${t('interests.needTty')}`);
+      return 2;
+    }
+    // consent (first time) → searchable topic picker; nothing is written before consent
+    const next = await require('../onboarding').setupNews({ dir, stdin: process.stdin, stdout: process.stdout });
+    printState(next, t);
+    return 0;
+  }
   const args = rest.slice(1);
   const state = interests.loadInterests(dir);
 

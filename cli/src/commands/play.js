@@ -18,7 +18,7 @@ const i18n = require('../i18n');
 const { c, parseFlags } = require('../util');
 const { PlaySession, GAMES } = require('../play/session');
 const { runTty } = require('../play/ui');
-const { findSkinAd, loadSkin, skinAccent } = require('../play/skin');
+const { findSkinAd, skinVariants, skinAccent } = require('../play/skin');
 const streaks = require('../play/streak');
 const bridge = require('../play/bridge');
 const { selectPrompt, textPrompt } = require('../menu');
@@ -102,11 +102,11 @@ module.exports = async function play(_cmd, argv) {
 
 /** Run one game in the alternate screen, then print the share string and submit the score. */
 async function playGame(game, { dir, flags }) {
-  const skinLines = game && flags.ad
-    ? loadSkin({ dir, adId: flags.ad, game, cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 })
-    : [];
+  const skin = game && flags.ad
+    ? skinVariants({ dir, adId: flags.ad, game, cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 })
+    : { options: [], card: '' };
   const skinAd = game && flags.ad ? findSkinAd({ dir, adId: flags.ad, game }) : null;
-  const session = new PlaySession({ game, dir, skinLines, skinAccent: skinAccent(skinAd) });
+  const session = new PlaySession({ game, dir, skinLines: skin.options[0] || [], skinOptions: skin.options, skinCard: skin.card, skinAccent: skinAccent(skinAd) });
   // Tell `meshad run` when this pane is really drawing (local file, see play/bridge.js).
   const renderSignal = {
     beat: () => bridge.writeRender(dir, Date.now(), process.env.TMUX_PANE || null),
@@ -146,7 +146,17 @@ async function playMenu({ dir = config.configDir(), flags = {}, stdin, stdout, r
       { value: 'news', label: t('play.pick.news'), hint: t('play.pick.news.hint') },
       { value: 'back', label: t('menu.back') },
     ];
-    const pick = await selectPrompt({ title: t('play.pick.title'), subtitle: t('play.pick.subtitle'), options, initialIndex: last, ...io });
+    // Under the list: a one-line description of the highlighted game and its local best / plays / streak.
+    const preview = (o, st) => {
+      if (!GAMES.includes(o.value)) return [];
+      const e = stats[o.value];
+      const live = streaks.liveStreak(e, today);
+      const line = e.played > 0
+        ? [t('play.pick.preview.stats', { best: e.best, played: e.played, bs: e.best_streak }), live > 0 ? t('play.pick.preview.streak', { n: live }) : ''].filter(Boolean).join(' · ')
+        : t('play.pick.preview.none');
+      return [st.paint(t(`play.pick.preview.${o.value}`), { fg: 'ink' }), st.paint(line, { fg: 'mute' })];
+    };
+    const pick = await selectPrompt({ title: t('play.pick.title'), subtitle: t('play.pick.subtitle'), options, initialIndex: last, preview, footer: t('play.pick.keys'), ...io });
     if (pick === null || pick === 'back') return 0;
     last = options.findIndex((o) => o.value === pick);
 

@@ -36,6 +36,9 @@ function canonicalAdJson(ad) {
       // Optional playable-game skin id (ascii_panel only). Undefined → omitted,
       // so every ad signed before `game` existed keeps its exact bytes.
       game: render.game,
+      // Optional brand colour (`{ v, brand }`). Undefined → omitted, so ads
+      // signed before `colors` existed keep their exact bytes. Always AFTER game.
+      colors: render.colors,
     },
   });
 }

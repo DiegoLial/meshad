@@ -381,10 +381,95 @@ function renderLine(line, maxWidth = MAX_LINE_WIDTH) {
 }
 
 /** Closed set of playable game ids a sponsored ascii_panel may skin (render.game). */
-const GAME_IDS = ['runner', 'termo'];
+const GAME_IDS = ['runner', 'termo', 'snake', 'flappy', 'blocks', 'slide', 'chess'];
+
+/** What a client that only declared `features=game` (pre-`games`) can verify and play. */
+const LEGACY_GAME_IDS = ['runner', 'termo'];
+
+/* ── brand colour (render.colors v1) ──────────────────────────────────────── */
+
+const BRAND_HEX_RE = /^#[0-9a-f]{6}$/;
+const BRAND_MIN_CONTRAST_ON_BLACK = 3;
+const BRAND_MIN_CONTRAST_ON_WHITE = 2;
+
+/** The only render.colors version a client may draw; anything else is ignored. */
+const COLORS_VERSION = 1;
+
+function hexToRgb(hex) {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+}
+
+/** WCAG 2.x relative luminance of an sRGB colour. */
+function relativeLuminance([r, g, b]) {
+  const lin = (c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+/**
+ * A brand colour must be a lowercase `#rrggbb` that stays legible on BOTH a dark
+ * and a light terminal: contrast >= 3:1 against #000000 and >= 2:1 against #ffffff.
+ * @returns {{ ok: boolean, reason?: 'invalid_hex'|'too_dark'|'too_light' }}
+ */
+function validateBrandColor(hex) {
+  if (typeof hex !== 'string' || !BRAND_HEX_RE.test(hex)) return { ok: false, reason: 'invalid_hex' };
+  const lum = relativeLuminance(hexToRgb(hex));
+  if ((lum + 0.05) / 0.05 < BRAND_MIN_CONTRAST_ON_BLACK) return { ok: false, reason: 'too_dark' };
+  if (1.05 / (lum + 0.05) < BRAND_MIN_CONTRAST_ON_WHITE) return { ok: false, reason: 'too_light' };
+  return { ok: true };
+}
+
+/** Reference RGB for each named colour of the advertiser palette (no `dim`: that is an attribute). */
+const BRAND_NAMED_RGB = {
+  red: [205, 49, 49], green: [13, 188, 121], yellow: [229, 229, 16],
+  blue: [36, 114, 200], magenta: [188, 63, 188], cyan: [17, 168, 205],
+};
+
+const dist2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+
+/**
+ * Degrade a brand colour for terminals without truecolor: the nearest xterm-256
+ * entry (6x6x6 cube or grey ramp) and the nearest name of the existing palette.
+ * @returns {{ ansi256: number, ansi16: string }}
+ */
+function brandFallbacks(hex) {
+  const rgb = hexToRgb(hex);
+  const level = (c) => (c < 48 ? 0 : c < 115 ? 1 : Math.min(5, Math.floor((c - 35) / 40)));
+  const CUBE = [0, 95, 135, 175, 215, 255];
+  const [ri, gi, bi] = rgb.map(level);
+  const cube = 16 + 36 * ri + 6 * gi + bi;
+  const cubeRgb = [CUBE[ri], CUBE[gi], CUBE[bi]];
+  const grey = Math.max(0, Math.min(23, Math.round((((rgb[0] + rgb[1] + rgb[2]) / 3) - 8) / 10)));
+  const greyV = 8 + 10 * grey;
+  const ansi256 = dist2(rgb, [greyV, greyV, greyV]) < dist2(rgb, cubeRgb) ? 232 + grey : cube;
+  let ansi16 = 'cyan';
+  let best = Infinity;
+  for (const [name, ref] of Object.entries(BRAND_NAMED_RGB)) {
+    const d = dist2(rgb, ref);
+    if (d < best) { best = d; ansi16 = name; }
+  }
+  return { ansi256, ansi16 };
+}
+
+/**
+ * Read `render.colors` the way a client must: only `{ v: 1, brand: '#rrggbb' }`
+ * with a legible brand colour is accepted. An unknown version (or anything else)
+ * yields null — the client ignores the field and draws with render.color.
+ * @returns {{ v: 1, brand: string } | null}
+ */
+function parseRenderColors(colors) {
+  if (colors === null || typeof colors !== 'object' || Array.isArray(colors)) return null;
+  if (colors.v !== COLORS_VERSION) return null;
+  const keys = Object.keys(colors);
+  if (keys.length !== 2 || !keys.includes('brand')) return null;
+  return validateBrandColor(colors.brand).ok ? { v: COLORS_VERSION, brand: colors.brand } : null;
+}
 
 module.exports = {
-  GAME_IDS,
+  GAME_IDS, LEGACY_GAME_IDS,
+  COLORS_VERSION, validateBrandColor, brandFallbacks, parseRenderColors,
   FG_CODES, BG_CODES, FG_NAMES, BG_NAMES, ATTR_CODES,
   MAX_ART_LINES, MAX_SPANS_PER_LINE, MAX_LINE_WIDTH, MAX_SPAN_TEXT,
   MAX_FRAMES, MIN_HOLD_MS, MAX_HOLD_MS, DEFAULT_HOLD_MS, TRANSITIONS,

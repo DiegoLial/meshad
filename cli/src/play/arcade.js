@@ -99,8 +99,9 @@ class FlappyGame {
     if (this.over) return;
     if (k === 'p' && this.started) { this.paused = !this.paused; return; }
     if (this.paused) return;
-    if (!this.started) { if (k === ' ') this.started = true; return; }
-    if (k === ' ' || k === 'up' || k === 'w' || k === 'k') this.pendingFlap = true;
+    const flap = k === ' ' || k === 'up' || k === 'w' || k === 'k';
+    if (!this.started) { if (flap) this.started = true; return; } // any flap key starts it, as the controls hint says
+    if (flap) this.pendingFlap = true;
   }
 
   tick() {
