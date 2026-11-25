@@ -26,12 +26,18 @@ function canonicalAdJson(ad) {
   });
 }
 
-function startMockServer({ minWaitMs = 3000, tamperSignatures = false, gameAd = null } = {}) {
+const DEFAULT_NEWS_ITEMS = [
+  { id: 'n1', topic: 'lang:rust', topics: ['lang:rust'], title: 'The Rust blog: releases', url: 'https://blog.rust-lang.org/', source: 'blog.rust-lang.org' },
+  { id: 'n2', topic: 'lang:python', topics: ['lang:python'], title: "What's new in Python", url: 'https://docs.python.org/3/whatsnew/', source: 'docs.python.org' },
+  { id: 'n3', topic: 'topic:security', topics: ['topic:security'], title: 'OWASP Top Ten', url: 'https://owasp.org/www-project-top-ten/', source: 'owasp.org' },
+];
+
+function startMockServer({ minWaitMs = 3000, tamperSignatures = false, gameAd = null, newsItems = DEFAULT_NEWS_ITEMS, noAds = false } = {}) {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
   const publicKeyB64 = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
 
   // `games`: every leaderboard call, with the Authorization header as sent.
-  const received = { batches: [], events: [], games: [] };
+  const received = { batches: [], events: [], games: [], news: [] };
 
   const makeAd = (n) => {
     const text = `▲ MockTool ${n} — ship faster`;
@@ -76,7 +82,11 @@ function startMockServer({ minWaitMs = 3000, tamperSignatures = false, gameAd = 
       return json(200, { algorithm: 'ed25519', public_key_b64: publicKeyB64 });
     }
     if (req.method === 'GET' && url.pathname === '/v1/ads/pack') {
-      return json(200, { pack_id: 'pk_mock', ttl_seconds: 900, ads: [...(gameAd ? [makeGameAd(gameAd)] : []), makeAd(1), makeAd(2)] });
+      return json(200, { pack_id: 'pk_mock', ttl_seconds: 900, ads: noAds ? [] : [...(gameAd ? [makeGameAd(gameAd)] : []), makeAd(1), makeAd(2)] });
+    }
+    if (req.method === 'GET' && url.pathname === '/v1/news/feed') {
+      received.news.push({ search: url.search, auth: req.headers.authorization || null, url: req.url });
+      return json(200, { updated_at: new Date().toISOString(), ttl_seconds: 900, taxonomy: [], items: newsItems });
     }
     if (req.method === 'POST' && url.pathname === '/v1/telemetry/events') {
       let body = '';

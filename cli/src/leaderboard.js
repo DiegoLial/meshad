@@ -18,6 +18,8 @@ const { request } = require('./api');
 
 const FILE = 'leaderboard.json';
 const HANDLE_RE = /^[A-Za-z0-9_-]{3,16}$/;
+/** Games the server replays (apps/api/src/games.js GAMES). Log formats are documented per engine in play/*.js. */
+const GAMES = ['runner', 'termo', 'snake', 'flappy', 'blocks', 'slide', 'chess'];
 
 function load(dir = config.configDir()) {
   try {
@@ -54,14 +56,23 @@ async function leave({ dir = config.configDir(), apiUrl = config.apiUrl(config.l
   return { left: true, remoteDeleted };
 }
 
-/** Send one finished game's replay. `result` is PlaySession#result. Throws on failure. */
+/**
+ * Send one finished game's replay. `result` is PlaySession#result: {game, date, score, log} with the
+ * log in the engine's own format (runner/flappy: flap ticks · snake: [tick, dir] · blocks: [tick, action] ·
+ * slide: moves · termo: guesses · chess: coordinate moves). Throws on failure.
+ */
 async function submit(result, { dir = config.configDir(), apiUrl = config.apiUrl(config.load()) } = {}) {
   const me = load(dir);
   if (!me) return null;
+  if (!result || !GAMES.includes(result.game) || !Array.isArray(result.log) || !Number.isInteger(result.score)) {
+    const e = new Error('unscoreable result');
+    e.code = 'bad_result';
+    throw e;
+  }
   return request(apiUrl, 'POST', '/v1/games/scores', {
     apiKey: me.token,
     body: { game: result.game, date: result.date, score: result.score, log: result.log },
   });
 }
 
-module.exports = { load, join, leave, submit, HANDLE_RE, FILE };
+module.exports = { load, join, leave, submit, HANDLE_RE, GAMES, FILE };

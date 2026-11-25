@@ -151,11 +151,18 @@ test('session: finishing a game exposes the share string; esc/ctrl-c end the ses
   assert.equal(t.done, true);
 });
 
-test('keys: raw chunks normalize; escape sequences (arrows) are dropped', () => {
+test('keys: raw chunks normalize; arrows become up/down/left/right, other escape sequences are dropped', () => {
   assert.deepEqual(parseKeys(' '), [' ']);
   assert.deepEqual(parseKeys('Ab\r'), ['a', 'b', 'enter']);
   assert.deepEqual(parseKeys('\x1b'), ['esc']);
-  assert.deepEqual(parseKeys('\x1b[A'), []);
+  assert.deepEqual(parseKeys('\x1b[A'), ['up']);
+  assert.deepEqual(parseKeys('\x1b[B\x1b[C\x1b[D'), ['down', 'right', 'left'], 'several arrows in one chunk');
+  assert.deepEqual(parseKeys('\x1bOA'), ['up'], 'application cursor mode');
+  assert.deepEqual(parseKeys('\x1b[1;5C'), ['right'], 'with a modifier');
+  assert.deepEqual(parseKeys('\x1b[3~'), [], 'Delete is not a game key');
+  assert.deepEqual(parseKeys('\x1b[Ax'), ['up', 'x'], 'keys after a sequence are kept');
+  assert.deepEqual(parseKeys('\x1bx'), [], 'Alt+key is dropped');
+  assert.deepEqual(parseKeys('O-O=Q'), ['o', '-', 'o', '=', 'q']);
   assert.deepEqual(parseKeys('\x03'), ['ctrl-c']);
   assert.deepEqual(parseKeys('\x7f'), ['backspace']);
 });

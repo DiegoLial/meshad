@@ -68,15 +68,17 @@ function fakePlayRender(dir, { pane = '%7' } = {}) {
 }
 
 test('parser: --play before "--" is ours; everything after "--" is the child, verbatim', () => {
-  assert.deepEqual(parseRunArgs(['--play', '--', 'claude']), { help: false, play: true, cmdline: ['claude'], error: null });
-  assert.deepEqual(parseRunArgs(['--', 'claude']), { help: false, play: false, cmdline: ['claude'], error: null });
+  assert.deepEqual(parseRunArgs(['--play', '--', 'claude']), { help: false, play: true, news: false, cmdline: ['claude'], error: null });
+  assert.deepEqual(parseRunArgs(['--', 'claude']), { help: false, play: false, news: false, cmdline: ['claude'], error: null });
+  assert.equal(parseRunArgs(['--news', '--', 'claude']).news, true);
+  assert.equal(parseRunArgs(['--', 'aider', '--news']).news, false, '--news after "--" belongs to the wrapped command');
   // flags after "--" belong to the wrapped command — including --play and --help
   assert.deepEqual(parseRunArgs(['--', 'aider', '--help', '--play']).cmdline, ['aider', '--help', '--play']);
   assert.equal(parseRunArgs(['--', 'aider', '--help']).help, false);
   assert.equal(parseRunArgs(['--help']).help, true);
   // lenient legacy form (no separator) still works, with or without our flag
   assert.deepEqual(parseRunArgs(['claude', '-x']).cmdline, ['claude', '-x']);
-  assert.deepEqual(parseRunArgs(['--play', 'claude']), { help: false, play: true, cmdline: ['claude'], error: null });
+  assert.deepEqual(parseRunArgs(['--play', 'claude']), { help: false, play: true, news: false, cmdline: ['claude'], error: null });
   // typos before "--" are loud, not silently ignored
   assert.equal(parseRunArgs(['--plya', '--', 'claude']).error, '--plya');
   assert.equal(parseRunArgs(['--play']).cmdline.length, 0);

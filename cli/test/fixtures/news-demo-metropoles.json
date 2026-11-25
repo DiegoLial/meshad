@@ -1,0 +1,104 @@
+{
+  "_comment": "DEMO ONLY (MESHAD_NEWS_FIXTURE). Headlines from the public Metrópoles RSS https://www.metropoles.com/feed fetched 2026-11-24; not part of any production feed.",
+  "items": [
+    {
+      "id": "demo-metropoles-1",
+      "title": "Mbappé presenteia Vini Jr. com prêmio de melhor da partida na Champions",
+      "url": "https://www.metropoles.com/esportes/mbappe-presenteia-vini-jr-com-premio-de-melhor-da-partida-na-champions",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-25T00:19:44.000Z",
+      "_category": "Esportes"
+    },
+    {
+      "id": "demo-metropoles-2",
+      "title": "CNI aciona o STF contra portaria do governo que cria regras para a 5x2",
+      "url": "https://www.metropoles.com/brasil/cni-aciona-o-stf-contra-portaria-do-governo-que-cria-regras-para-a-5x2",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-25T00:18:06.000Z",
+      "_category": "Brasil"
+    },
+    {
+      "id": "demo-metropoles-3",
+      "title": "GTA 6 tem portal secreto para Vice City do PS2. Veja tutorial",
+      "url": "https://www.metropoles.com/colunas/metropoles-games/gta-6-tem-portal-secreto-para-vice-city-do-ps2-veja-tutorial",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-25T00:06:28.000Z",
+      "_category": "Metrópoles Games"
+    },
+    {
+      "id": "demo-metropoles-4",
+      "title": "Copa São Paulo de Futebol Júnior define grupos da edição 2027; confira",
+      "url": "https://www.metropoles.com/esportes/copa-sao-paulo-de-futebol-junior-define-grupos-da-edicao-2027-confira",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-24T23:56:30.000Z",
+      "_category": "Esportes"
+    },
+    {
+      "id": "demo-metropoles-5",
+      "title": "Governo Lula decide que não enviará embaixador de volta à Argentina",
+      "url": "https://www.metropoles.com/brasil/governo-lula-decide-que-nao-enviara-embaixador-de-volta-a-argentina",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-24T23:49:41.000Z",
+      "_category": "Brasil"
+    },
+    {
+      "id": "demo-metropoles-6",
+      "title": "BB confirma conversas com governo sobre regras do crédito rural",
+      "url": "https://www.metropoles.com/colunas/dinheiro-e-negocios/bb-confirma-conversas-com-governo-sobre-regras-do-credito-rural",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-24T23:49:11.000Z",
+      "_category": "Dinheiro e Negócios"
+    },
+    {
+      "id": "demo-metropoles-7",
+      "title": "Pesquisa revela como o cérebro prepara as palavras antes da fala",
+      "url": "https://www.metropoles.com/saude/pesquisa-revela-como-o-cerebro-prepara-as-palavras-antes-da-fala",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-24T23:34:52.000Z",
+      "_category": "Saúde"
+    },
+    {
+      "id": "demo-metropoles-8",
+      "title": "Elon Musk pede anulação de condenação por fraude a acionistas do Twitter",
+      "url": "https://www.metropoles.com/mundo/elon-musk-pede-anulacao-de-condenacao-por-fraude-a-acionistas-do-twitter",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-24T23:32:28.000Z",
+      "_category": "Mundo"
+    },
+    {
+      "id": "demo-metropoles-9",
+      "title": "Anatel identifica comércio que interferiu no GPS de aviões em Guarulhos",
+      "url": "https://www.metropoles.com/sao-paulo/anatel-identifica-comercio-que-interferiu-no-gps-de-avioes-em-guarulhos",
+      "source": "Metrópoles",
+      "topics": [
+        "topic:brasil"
+      ],
+      "published_at": "2026-11-24T23:31:20.000Z",
+      "_category": "São Paulo"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ const path = require('node:path');
 const config = require('../config');
 const i18n = require('../i18n');
 const { AdCache } = require('../adcache');
+const interests = require('../interests');
 const { LAST_BATCH_FILE, QUEUE_FILE } = require('../telemetry');
 const { request } = require('../api');
 const { c, parseFlags, usd, pad } = require('../util');
@@ -42,6 +43,7 @@ module.exports = async function status(_cmd, argv) {
     console.log(`    ${apiUrl}/v1/telemetry/events   ${c.dim(t('status.destTelemetry'))}`);
     console.log(`    ${apiUrl}/v1/ads/pack           ${c.dim(t('status.destPack'))}`);
     console.log(`    ${apiUrl}/v1/keys/public        ${c.dim(t('status.destKeys'))}`);
+    console.log(`    ${apiUrl}/v1/news/feed          ${c.dim(t('status.destNews'))}`);
     console.log(`    ${apiUrl}/v1/publisher/*        ${c.dim(t('status.destPublisher'))}`);
     console.log('');
     console.log(`  ${c.bold(t('status.lastBatch'))} ${c.dim(`(${path.join(dir, LAST_BATCH_FILE)})`)}`);
@@ -92,6 +94,14 @@ module.exports = async function status(_cmd, argv) {
   } else {
     console.log(`  ${pad(t('status.adPack'), 16)} ${c.dim(t('status.noCache'))}`);
   }
+
+  const ints = interests.loadInterests(dir);
+  const newsLabel = !ints.consented_at || ints.topics.length === 0
+    ? c.dim(t('status.newsOff'))
+    : ints.enabled
+      ? c.green(t('status.newsOn', { n: ints.topics.length }))
+      : c.yellow(t('status.newsPaused', { n: ints.topics.length }));
+  console.log(`  ${pad(t('status.news'), 16)} ${newsLabel}`);
 
   const queue = config.readJson(QUEUE_FILE, []);
   console.log(`  ${pad(t('status.queue'), 16)} ${queue.length} ${t('status.buffered')}`);

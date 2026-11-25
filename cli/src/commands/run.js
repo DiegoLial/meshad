@@ -17,13 +17,17 @@ const { Telemetry, NullTelemetry } = require('../telemetry');
 const { HYPOTHETICAL_ADS } = require('../hypothetical');
 const i18n = require('../i18n');
 const { IdleStateMachine } = require('../fsm');
-const { LineRenderer, Animator, buildTimeline } = require('../render');
+const { LineRenderer, Animator, buildTimeline, MAX_ROWS_ART } = require('../render');
 const { makeEvent, loadWindow, saveWindow } = require('../session');
 const { c } = require('../util');
 const { GAME_IDS } = require('../creative');
 const bridge = require('../play/bridge');
 const tmux = require('../play/tmux');
 const { isVisible, VisibilityTracker } = require('../play/visibility');
+const interests = require('../interests');
+const { NewsCache } = require('../news');
+const { formatNews } = require('../news-render');
+const { maybeRunOnboarding } = require('../onboarding');
 
 const HELP = `
   meshad run -- <command> [args...] — wrap any agent CLI
@@ -38,6 +42,9 @@ const HELP = `
               $TMUX) instead of drawing the one-line ad. Outside tmux it only
               writes the wait state and tells you to open \`meshad play\` in
               another pane. Your agent's stdin is never touched.
+    --news    show 1-2 local-interest headlines next to the ad (or alone when no ad
+              shows). Needs topics declared with \`meshad interests add\`; also on
+              whenever \`meshad interests enable\` is set. Never billed, never sponsored.
     --help    show this help
 
   Example: meshad run -- aider --model gpt-5
@@ -48,15 +55,15 @@ const SILENCE_MS = 1500;
 const TICK_MS = 100;
 const VISIBILITY_SAMPLE_MS = 500; // how often the split's visibility is checked while a unit is open
 
-const RUN_FLAGS = ['--play', '--help'];
+const RUN_FLAGS = ['--play', '--news', '--help'];
 
 /**
- * Parse `meshad run [--play] [--help] [--] <cmd> [args...]`.
+ * Parse `meshad run [--play] [--news] [--help] [--] <cmd> [args...]`.
  * Everything AFTER the first `--` belongs to the wrapped command, verbatim
  * (so `meshad run -- aider --help` runs aider's help, not ours). Before it,
  * only our own flags are legal. Without any `--` the leading flags are still
  * ours and the rest is the command (the long-standing lenient form).
- * @returns {{help:boolean, play:boolean, cmdline:string[], error:string|null}}
+ * @returns {{help:boolean, play:boolean, news:boolean, cmdline:string[], error:string|null}}
  */
 function parseRunArgs(argv) {
   const sep = argv.indexOf('--');
@@ -71,6 +78,7 @@ function parseRunArgs(argv) {
   return {
     help: own.includes('--help'),
     play: own.includes('--play'),
+    news: own.includes('--news'),
     cmdline,
     error: bad === undefined ? null : bad,
   };
@@ -90,7 +98,7 @@ module.exports = async function run(_cmd, argv) {
     console.log(HELP);
     return 0;
   }
-  const { cmdline, play } = parsed;
+  const { cmdline, play, news } = parsed;
   if (cmdline.length === 0) {
     console.error(`${c.red('error:')} no command given — usage: meshad run -- <cmd>`);
     return 2;
@@ -103,17 +111,40 @@ module.exports = async function run(_cmd, argv) {
     return 2;
   }
 
-  const cfg = config.load();
+  let cfg = config.load();
   if (!cfg.anon_id) {
     console.error(`${c.red('error:')} not initialized — run ${c.bold('meshad init')} first`);
     return 1;
   }
 
   const dir = config.configDir();
+  // First run on a real terminal: ask once (games? news?) BEFORE the child is
+  // spawned, so nothing else is reading stdin. Reload so the answers apply now.
+  if (process.stdin.isTTY && process.stdout.isTTY && !cfg.onboarding_done) {
+    try { await maybeRunOnboarding({ dir, cfg }); } catch { /* onboarding never blocks the wrap */ }
+    cfg = config.load();
+  }
   const apiUrl = config.apiUrl(cfg);
   const paused = config.isPaused(cfg);
   const telemetry = cfg.dev_mode ? new NullTelemetry() : new Telemetry({ dir, apiUrl });
   const adcache = new AdCache({ dir, apiUrl });
+  // Local-only interests (never uploaded). News is its own channel: it never
+  // goes through the fsm, is never billed and never emits an impression.
+  const interestsState = interests.loadInterests(dir);
+  // Games can be enabled once in config (onboarding / menu), no --play needed.
+  // NOTE: there is deliberately NO bare "J" hotkey here. The child runs with
+  // stdio ['inherit', 'pipe', 'pipe'] (usually under `script`), so it reads the
+  // real stdin itself; if run.js also read process.stdin it would steal or
+  // swallow the agent's keystrokes — a privacy-invariant violation. The hotkey
+  // is tmux's own prefix binding (Ctrl+B J), handled by tmux, never by us.
+  const configPlay = cfg.play_mode === 'yes';
+  const effectivePlay = play || configPlay;
+  const inTmux = effectivePlay && tmux.available();
+  if (news && !effectivePlay && (!interestsState.consented_at || interestsState.topics.length === 0)) {
+    console.error(`  ${c.yellow(i18n.t('run.newsNotConfigured', { cmd: 'meshad interests add <topic>' }))}`);
+  }
+  const newsActive = (!effectivePlay || !inTmux) && !paused && interests.isNewsActive(interestsState, { flagNews: news });
+  const newscache = new NewsCache({ dir, apiUrl });
   const renderer = new LineRenderer(process.stdout);
   // The animator owns playback; stop() halts any pending frame AND clears, so
   // an animated ad can never outlive the wait it was drawn for.
@@ -127,23 +158,34 @@ module.exports = async function run(_cmd, argv) {
 
   let ads = cfg.dev_mode ? HYPOTHETICAL_ADS : [];
   let shownAd = null;
+  let shownNews = false; // standalone headlines on screen (no ad, nothing billed)
+  let newsFeed = [];
   let lastOutputAt = Date.now();
 
   // --play: the wait state goes to a plain file `meshad play` watches. It must
   // never be able to break the wrap, so every bridge touch is best-effort.
-  const inTmux = play && tmux.available();
   let playPane = null; // pane id of the split we opened, if any
   let splitHandled = false; // one unit per wait: decide the split once per wait
   let lastBeatAt = 0;
   let visibility = null; // VisibilityTracker for the open unit (only while a sponsored split is displayed)
   let lastSampleAt = 0;
+  let lastAdoptAt = 0;
+  let baselinePane = null; // pane already rendering when this wait began: not opened DURING the wait, so not adopted
+  let shownHint = false; // discreet one-line hint on screen (never billed)
   const beat = (state, now = Date.now()) => {
-    if (!play) return;
+    if (!effectivePlay) return;
     try { bridge.writeState(dir, state, now); } catch { /* best effort */ }
     lastBeatAt = now;
   };
-  if (play) {
-    if (!inTmux) console.error(`  ${c.yellow(i18n.t('run.playNoTmux'))}`);
+  let keyHandle = null;
+  const unbind = () => { const h = keyHandle; keyHandle = null; tmux.unbindPlayKey(h); };
+  if (effectivePlay) {
+    if (!inTmux) {
+      console.error(`  ${c.yellow(i18n.t(play ? 'run.playNoTmux' : 'run.playNoTmuxConfig'))}`);
+    } else {
+      keyHandle = tmux.bindPlayKey({ dir });
+      process.once('exit', unbind);
+    }
     beat('idle'); // the agent starts out busy
   }
 
@@ -151,6 +193,11 @@ module.exports = async function run(_cmd, argv) {
   if (!cfg.dev_mode) adcache
     .getAds({ anonId: cfg.anon_id, terminalType: cfg.terminal_type_default })
     .then((a) => (ads = a))
+    .catch(() => {});
+
+  if (newsActive) newscache
+    .getFeed()
+    .then((f) => (newsFeed = f))
     .catch(() => {});
 
   // Interactive agent CLIs (Claude Code, aider) probe their stdout: a plain
@@ -171,6 +218,11 @@ module.exports = async function run(_cmd, argv) {
     // A sponsored split bills what was really visible, not the time since it opened.
     const visibleMs = visibility ? visibility.billableMs() : undefined;
     visibility = null;
+    // Standalone headlines never move the fsm out of 'waiting', so no 'clear'
+    // action will come: wipe them here, synchronously, before anything else.
+    if (shownNews || shownHint) animator.stop();
+    shownNews = false;
+    shownHint = false;
     for (const action of fsm.idleEnd(Date.now(), visibleMs)) {
       if (action.type === 'clear') {
         animator.stop(); // FIRST, synchronous — the <100ms invariant
@@ -228,6 +280,27 @@ module.exports = async function run(_cmd, argv) {
     }
   }
 
+  function drawHint(key) {
+    shownHint = true;
+    const cols = process.stdout.columns || 80;
+    const text = i18n.t(key);
+    animator.play({ steps: [{ lines: [c.dim(text.length > cols - 1 ? text.slice(0, cols - 1) : text)], ms: 0 }], loop: false });
+  }
+
+  /** The user may have opened the pane themselves (Ctrl+B J): adopt it instead of opening a duplicate. */
+  function adoptOpenedPane(now) {
+    if (splitHandled || now - lastAdoptAt < VISIBILITY_SAMPLE_MS) return;
+    lastAdoptAt = now;
+    let render = null;
+    try { render = bridge.readRender(dir); } catch { /* unreadable → none */ }
+    if (render && render.pane && render.pane !== baselinePane && tmux.paneAlive(render.pane)) {
+      playPane = render.pane;
+      splitHandled = true; // free-play pane the user opened: nothing to bill
+      animator.stop();
+      shownHint = false;
+    }
+  }
+
   /** Sample whether the open split is really on screen (play drawing + tmux window active). */
   function sampleVisibility(now) {
     if (!visibility || !playPane || now - lastSampleAt < VISIBILITY_SAMPLE_MS) return;
@@ -246,23 +319,68 @@ module.exports = async function run(_cmd, argv) {
       telemetry.enqueue(makeEvent(cfg, 'idle_start'));
       telemetry.flushSoon();
       beat('waiting', now);
+      if (inTmux) {
+        try { const r0 = bridge.readRender(dir); baselinePane = r0 && r0.pane; } catch { baselinePane = null; }
+        lastAdoptAt = now;
+      }
     } else if (fsm.state !== 'idle' && now - lastBeatAt >= bridge.HEARTBEAT_MS) {
       beat('waiting', now); // heartbeat: tells play the writer is alive
     }
-    if (play) {
-      if (fsm.state === 'waiting' && now - fsm.idleStartAt >= fsm.minWaitMs) playUnit(now);
+    if (inTmux) {
+      if (fsm.state === 'waiting') {
+        if (now - fsm.idleStartAt < fsm.minWaitMs) {
+          adoptOpenedPane(now);
+          if (!splitHandled && !shownHint) drawHint('run.hintPressJ');
+        } else {
+          adoptOpenedPane(now);
+          if (shownHint) { animator.stop(); shownHint = false; } // clear BEFORE the split opens
+          playUnit(now);
+        }
+      }
       sampleVisibility(now);
       return;
     }
-    if (!paused && !shownAd && ads.length > 0) {
+    // Outside tmux, explicit --play never bills a footer ad (nothing to bill without a split).
+    if (!play && !paused && !shownAd && ads.length > 0) {
       for (const action of fsm.tick(now)) {
         if (action.type === 'display') {
           shownAd = adcache.nextAd(ads) || ads[0]; // one unit per wait, rotating through the ranked pack
           // Static creatives yield a single-step timeline, so this is the same
           // single synchronous write they always were.
-          animator.play(buildTimeline(shownAd, process.stdout.columns || 80, process.stdout.rows || 24));
+          const cols = process.stdout.columns || 80;
+          const rows = process.stdout.rows || 24;
+          const timeline = buildTimeline(shownAd, cols, rows);
+          shownNews = false; // the ad takes over the zone
+          if (newsActive && newsFeed.length > 0) {
+            const newsLines = formatNews(newscache.nextHeadlines(newsFeed, interestsState.topics, 2), cols);
+            // Headlines ride along only if they fit WITHOUT touching the ad's own rows.
+            const tallest = Math.max(...timeline.steps.map((st) => st.lines.length));
+            if (newsLines.length > 0 && tallest + newsLines.length <= Math.min(rows - 1, MAX_ROWS_ART + 2)) {
+              for (const st of timeline.steps) st.lines = [...st.lines, ...newsLines];
+            }
+          }
+          animator.play(timeline);
         }
       }
+    }
+    if (
+      newsActive && !paused && !shownAd && !shownNews && newsFeed.length > 0 &&
+      fsm.state === 'waiting' && now - fsm.idleStartAt >= fsm.minWaitMs
+    ) {
+      // No ad this wait (none cached, or the frequency cap): headlines alone.
+      // Deliberately outside the fsm — no tick, no shownAd, no impression.
+      const cols = process.stdout.columns || 80;
+      const newsLines = formatNews(newscache.nextHeadlines(newsFeed, interestsState.topics, 2), cols, { standalone: true });
+      shownNews = true; // one attempt per wait, even if nothing fit
+      if (newsLines.length > 0) animator.play({ steps: [{ lines: newsLines, ms: 0 }], loop: false });
+      else if (effectivePlay && !shownHint) drawHint('run.playFallbackHint');
+    } else if (
+      effectivePlay && !shownAd && !shownNews && !shownHint &&
+      fsm.state === 'waiting' && now - fsm.idleStartAt >= fsm.minWaitMs &&
+      (play || paused || ads.length === 0 || !fsm.canDisplay(now)) &&
+      !(newsActive && newsFeed.length > 0)
+    ) {
+      drawHint('run.playFallbackHint'); // no ad / no headlines this wait: just the discreet pointer
     }
   }, TICK_MS);
 
@@ -276,7 +394,8 @@ module.exports = async function run(_cmd, argv) {
 
   clearInterval(ticker);
   if (fsm.state !== 'idle') endIdle();
-  if (play) bridge.clearState(dir); // a later `meshad play` is plain free-play
+  unbind();
+  if (effectivePlay) bridge.clearState(dir); // a later `meshad play` is plain free-play
   await telemetry.flush().catch(() => {});
   return exitCode;
 };

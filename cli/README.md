@@ -20,23 +20,31 @@ npm test                           # testes (FSM, telemetria, cache, render, sch
 ```bash
 meshad play runner     # Wait Runner: 1 tecla (Espaço) pula, sessões curtas, P pausa
 meshad play termo      # Termo Dev: a palavra dev do dia (5 letras, 6 tentativas)
+meshad play snake      # Snake: setas / WASD / hjkl
+meshad play flappy     # Flappy Term: Espaço ou ↑ bate asas
+meshad play blocks     # Meshad Blocks: ←→ move, ↑/X gira, Z gira ao contrário, ↓ desce, Espaço solta
+meshad play slide      # Slide 2048: setas / WASD / hjkl (Esc guarda os pontos)
+meshad play chess      # Mate do Dia: digite o lance (e2e4, Nf3) + Enter
+meshad play            # menu com todos os jogos, placar e manchetes
 meshad run --play -- claude   # dentro do tmux: abre o jogo num split quando a espera passa do min_wait
 ```
 
 `play` é um processo separado, com TTY próprio (tela alternativa): ele nunca lê nem repassa o stdin do agente. A única ponte com `meshad run --play` é o arquivo `play-state.json` no diretório de config (`{"state":"waiting"|"idle","ts":…}`, escrita atômica) — o jogo congela quando o agente está respondendo e retoma quando volta a pensar; Espaço continua jogando (free-play). Sem `run --play`, `meshad play` é free-play puro: nenhuma telemetria, nenhuma impressão, nenhuma rede. Mesma data UTC + mesmo jogo = mesma semente (mesma palavra, mesmos obstáculos); ao fim sai uma string para copiar, sem link.
+
+Visual: cores em truecolor / 256 / 16 conforme `COLORTERM` e `TERM`; `NO_COLOR` (qualquer valor) ou saída sem TTY = texto simples, ainda jogável. O céu do jogo esquenta conforme o agente demora (só cosmético — não altera o motor nem o replay). Quando a resposta chega, aparece um cartão "SUA RESPOSTA ESTÁ PRONTA" (Espaço continua, Esc volta ao agente). Streaks e recordes ficam só em `play-streaks.json` (0600, local, nunca enviados). Manchetes: `meshad` → Manchetes (filtro local pelos seus tópicos; `MESHAD_NEWS_FIXTURE=<arquivo.json>` troca a fonte por um arquivo, só para demos).
 
 Patrocínio: um anúncio `ascii_panel` pode trazer `render.game` (`runner` | `termo`) dentro da assinatura Ed25519. O `play` reverifica a assinatura com a chave pública local antes de desenhar a skin; se falhar, joga sem skin. Fora do tmux, `run --play` só escreve o estado e avisa para abrir `meshad play` em outro painel (nenhuma impressão é contada).
 
 ## Instalar como usuário final (fora do monorepo)
 
 ```bash
-npm install -g @meshad/cli   # registry still has 0.2.0; this tree is 0.3.0 (meshad play). Until 0.3.0 is published, install from this repo: npm install -g .
-meshad demo                  # anúncios fictícios, offline, sem conta
+curl -fsSL https://meshad.io/install | sh   # 0.4.0, com os jogos e as notícias
+meshad demo                                  # anúncios fictícios, offline, sem conta
 meshad init
 ```
 
-Sem instalar: `npx @meshad/cli demo`. Alternativas: `curl -fsSL https://meshad.io/install | sh`
-ou, a partir deste diretório (ou de um clone do mirror público), `npm install -g .`.
+O pacote no npm ainda não está nesta versão (não use `npm`/`npx` por enquanto).
+A partir deste diretório (ou de um clone do mirror público): `npm install -g .`.
 
 ## Privacidade em 10 linhas
 
